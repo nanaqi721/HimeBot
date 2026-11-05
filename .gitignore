@@ -1,0 +1,58 @@
+# .NET build output
+[Bb]in/
+[Oo]bj/
+artifacts/
+[Ll]og/
+[Ll]ogs/
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.csproj.user
+*.vbproj.user
+*.fsproj.user
+*.vcxproj.user
+
+# Visual Studio caches and databases
+*.opendb
+*.VC.db
+*.VC.VC.opendb
+
+# Test and code coverage output
+TestResults/
+coverage/
+coverage.*
+*.coverage
+*.coveragexml
+
+# NuGet package output
+packages/
+*.nupkg
+*.snupkg
+
+# Publish output and local publish settings
+publish/
+*.pubxml.user
+*.publishproj
+
+# JetBrains tools
+.idea/
+_ReSharper*/
+*.DotSettings.user
+
+# Visual Studio Code local settings
+.vscode/
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+secrets.json
+
+# Operating system generated files
+.DS_Store
+Thumbs.db
+Desktop.ini

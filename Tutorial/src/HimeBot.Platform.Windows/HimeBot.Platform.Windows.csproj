@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\HimeBot.Core\HimeBot.Core.csproj" />
+  </ItemGroup>
+</Project>

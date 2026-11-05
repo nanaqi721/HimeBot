@@ -1,0 +1,41 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{F1B89869-E7E5-4314-9414-9E9DBD9D8314}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HimeBot.App", "src\HimeBot.App\HimeBot.App.csproj", "{7BB51D38-A6FA-47C1-BF63-E8B9915E0B40}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HimeBot.Core", "src\HimeBot.Core\HimeBot.Core.csproj", "{F0E92916-D455-4676-A38B-C0DFEBA7245F}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HimeBot.Platform.Windows", "src\HimeBot.Platform.Windows\HimeBot.Platform.Windows.csproj", "{086C9BDC-E0D3-47E5-86CE-C6976D71516C}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x64 = Debug|x64
+		Release|x64 = Release|x64
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{7BB51D38-A6FA-47C1-BF63-E8B9915E0B40}.Debug|x64.ActiveCfg = Debug|x64
+		{7BB51D38-A6FA-47C1-BF63-E8B9915E0B40}.Debug|x64.Build.0 = Debug|x64
+		{7BB51D38-A6FA-47C1-BF63-E8B9915E0B40}.Release|x64.ActiveCfg = Release|x64
+		{7BB51D38-A6FA-47C1-BF63-E8B9915E0B40}.Release|x64.Build.0 = Release|x64
+		{F0E92916-D455-4676-A38B-C0DFEBA7245F}.Debug|x64.ActiveCfg = Debug|x64
+		{F0E92916-D455-4676-A38B-C0DFEBA7245F}.Debug|x64.Build.0 = Debug|x64
+		{F0E92916-D455-4676-A38B-C0DFEBA7245F}.Release|x64.ActiveCfg = Release|x64
+		{F0E92916-D455-4676-A38B-C0DFEBA7245F}.Release|x64.Build.0 = Release|x64
+		{086C9BDC-E0D3-47E5-86CE-C6976D71516C}.Debug|x64.ActiveCfg = Debug|x64
+		{086C9BDC-E0D3-47E5-86CE-C6976D71516C}.Debug|x64.Build.0 = Debug|x64
+		{086C9BDC-E0D3-47E5-86CE-C6976D71516C}.Release|x64.ActiveCfg = Release|x64
+		{086C9BDC-E0D3-47E5-86CE-C6976D71516C}.Release|x64.Build.0 = Release|x64
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{7BB51D38-A6FA-47C1-BF63-E8B9915E0B40} = {F1B89869-E7E5-4314-9414-9E9DBD9D8314}
+		{F0E92916-D455-4676-A38B-C0DFEBA7245F} = {F1B89869-E7E5-4314-9414-9E9DBD9D8314}
+		{086C9BDC-E0D3-47E5-86CE-C6976D71516C} = {F1B89869-E7E5-4314-9414-9E9DBD9D8314}
+	EndGlobalSection
+EndGlobal

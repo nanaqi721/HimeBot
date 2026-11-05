@@ -1,0 +1,56 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.7.34031.279
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "HimeBot.App", "src\HimeBot.App\HimeBot.App.csproj", "{6EBD4E18-386B-4EF9-B721-81090E4CD697}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "解决方案项", "解决方案项", "{F16ADE6E-9B88-4668-9445-7E785E66065C}"
+	ProjectSection(SolutionItems) = preProject
+		Directory.Build.props = Directory.Build.props
+	EndProjectSection
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "HimeBot.Core", "src\HimeBot.Core\HimeBot.Core.csproj", "{EDDEE227-1892-474B-97C2-779E2D0813BC}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "HimeBot.Platform.Windows", "src\HimeBot.Platform.Windows\HimeBot.Platform.Windows.csproj", "{97BCAC05-273B-4D31-96B3-A40001FA997B}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Debug|x64 = Debug|x64
+		Release|Any CPU = Release|Any CPU
+		Release|x64 = Release|x64
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{6EBD4E18-386B-4EF9-B721-81090E4CD697}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6EBD4E18-386B-4EF9-B721-81090E4CD697}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6EBD4E18-386B-4EF9-B721-81090E4CD697}.Debug|x64.ActiveCfg = Debug|x64
+		{6EBD4E18-386B-4EF9-B721-81090E4CD697}.Debug|x64.Build.0 = Debug|x64
+		{6EBD4E18-386B-4EF9-B721-81090E4CD697}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6EBD4E18-386B-4EF9-B721-81090E4CD697}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6EBD4E18-386B-4EF9-B721-81090E4CD697}.Release|x64.ActiveCfg = Release|x64
+		{6EBD4E18-386B-4EF9-B721-81090E4CD697}.Release|x64.Build.0 = Release|x64
+		{EDDEE227-1892-474B-97C2-779E2D0813BC}.Debug|Any CPU.ActiveCfg = Debug|x64
+		{EDDEE227-1892-474B-97C2-779E2D0813BC}.Debug|Any CPU.Build.0 = Debug|x64
+		{EDDEE227-1892-474B-97C2-779E2D0813BC}.Debug|x64.ActiveCfg = Debug|x64
+		{EDDEE227-1892-474B-97C2-779E2D0813BC}.Debug|x64.Build.0 = Debug|x64
+		{EDDEE227-1892-474B-97C2-779E2D0813BC}.Release|Any CPU.ActiveCfg = Release|x64
+		{EDDEE227-1892-474B-97C2-779E2D0813BC}.Release|Any CPU.Build.0 = Release|x64
+		{EDDEE227-1892-474B-97C2-779E2D0813BC}.Release|x64.ActiveCfg = Release|x64
+		{EDDEE227-1892-474B-97C2-779E2D0813BC}.Release|x64.Build.0 = Release|x64
+		{97BCAC05-273B-4D31-96B3-A40001FA997B}.Debug|Any CPU.ActiveCfg = Debug|x64
+		{97BCAC05-273B-4D31-96B3-A40001FA997B}.Debug|Any CPU.Build.0 = Debug|x64
+		{97BCAC05-273B-4D31-96B3-A40001FA997B}.Debug|x64.ActiveCfg = Debug|x64
+		{97BCAC05-273B-4D31-96B3-A40001FA997B}.Debug|x64.Build.0 = Debug|x64
+		{97BCAC05-273B-4D31-96B3-A40001FA997B}.Release|Any CPU.ActiveCfg = Release|x64
+		{97BCAC05-273B-4D31-96B3-A40001FA997B}.Release|Any CPU.Build.0 = Release|x64
+		{97BCAC05-273B-4D31-96B3-A40001FA997B}.Release|x64.ActiveCfg = Release|x64
+		{97BCAC05-273B-4D31-96B3-A40001FA997B}.Release|x64.Build.0 = Release|x64
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {35537B35-C58F-4A3C-8AE1-292A3C831CA6}
+	EndGlobalSection
+EndGlobal

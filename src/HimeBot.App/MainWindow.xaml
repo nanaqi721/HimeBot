@@ -5,8 +5,42 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:HimeBot.App"
         mc:Ignorable="d"
-        Title="MainWindow" Height="450" Width="800">
-    <Grid>
+        Title="HimeBot" 
+        Height="240" 
+        Width="640">
+
+    <Grid Margin="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock Text="游戏程序"
+                   FontWeight="SemiBold" />
+
+        <Grid Grid.Row="1"
+      Margin="0,8,0,16">
+
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <TextBox Margin="0,0,8,0"
+             IsReadOnly="True"
+             Text="{Binding SelectedExecutablePath, Mode=OneWay}" />
+
+            <Button Grid.Column="1"
+            Padding="16,4"
+            Content="选择文件..."
+            Command="{Binding SelectExecutableCommand}" />
+        </Grid>
+
+        <TextBlock Grid.Row="2"
+                   Text="{Binding StatusMessage}"
+                   TextWrapping="Wrap" />
 
     </Grid>
+    
 </Window>

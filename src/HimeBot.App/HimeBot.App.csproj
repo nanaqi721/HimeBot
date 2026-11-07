@@ -6,6 +6,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\HimeBot.Core\HimeBot.Core.csproj" />
     <ProjectReference Include="..\HimeBot.Platform.Windows\HimeBot.Platform.Windows.csproj" />
   </ItemGroup>

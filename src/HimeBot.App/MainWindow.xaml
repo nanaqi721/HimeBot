@@ -38,11 +38,20 @@
                     Command="{Binding SelectLaunchTargetCommand}" />
         </Grid>
 
-        <Button Grid.Row="2"
-        HorizontalAlignment="Right"
-        Padding="16,6"
-        Content="启动游戏"
-        Command="{Binding LaunchGameCommand}" />
+        <StackPanel Grid.Row="2"
+            HorizontalAlignment="Right"
+            Orientation="Horizontal">
+
+            <Button Margin="0,0,8,0"
+            Padding="16,6"
+            Content="启动游戏"
+            Command="{Binding LaunchGameCommand}" />
+
+            <Button Padding="16,6"
+            Content="查找游戏窗口"
+            Command="{Binding FindGameWindowCommand}" />
+
+        </StackPanel>
 
         <TextBlock Grid.Row="3"
                    Margin="0,16,0,0"

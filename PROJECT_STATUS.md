@@ -16,7 +16,11 @@
 
 人工观察已经证明原先直接启动 `koisen.exe` 的方案不可行：从 HimeBot 启动或直接从所在文件夹启动时，它只会短暂打开，随后退出。据用户反馈，在 HimeBot 之外双击 DMM 创建的桌面快捷方式，可以打开 DMM GAMES PLAYER 并启动游戏。该快捷方式是 Internet 快捷方式（`.url`），其 URI 使用 `dmmgameplayer:` 协议，因此当前 UI 改为选择并验证该快捷方式，而不再选择游戏可执行文件。
 
-Windows 启动器现在使用 Shell 激活语义打开经过验证的 `.url`。如果 `Process.Start` 没有抛出异常，只表示 Windows Shell 接受了请求；这不能证明 DMM 或游戏已经完成启动。通过 HimeBot 新 `.url` 流程进行的端到端人工验证仍处于待验证状态，包括确认 DMM 收到请求以及 `koisen.exe` 能够保持运行。
+端到端人工验证已经完成：在 HimeBot 中选择 DMM 创建的 `恋戦.url` 并发送启动请求后，DMM GAMES PLAYER 能够正常启动游戏，`koisen.exe` 可以保持运行。因此当前启动链路已经通过人工验证。
+
+Windows 启动器现在使用 Shell 激活语义打开经过验证的 `.url`。启动器返回成功仍然只表示 Windows Shell 接受了请求。游戏真正启动成功是本次人工观察的结果，目前程序还没有自动检测游戏进程或窗口。
+
+游戏窗口定位功能也已经完成第一个纵向验证：WPF 通过 `IGameWindowLocator` 调用 `WindowsGameWindowLocator`，按 `koisen` 进程名称筛选具有主窗口的候选项，并通过 Win32 `GetClientRect` 读取客户区尺寸。人工验证能够返回游戏窗口标题以及 `746 × 420` 的客户区尺寸。窗口初始化期间曾短暂返回无效尺寸，再次查询后结果正常；当前阶段保留手动重试，尚未加入自动等待或重试策略。
 
 ## 最近学习阶段已完成
 
@@ -31,12 +35,16 @@ Windows 启动器现在使用 Shell 激活语义打开经过验证的 `.url`。�
 7. 使用 `IGameLaunchTargetPicker` 和 `OpenFileDialogGameLaunchTargetPicker` 替换了可执行文件选择器。
 8. 将对话框限制为选择 `.url` 文件，并增加了对 `dmmgameplayer:` URI 协议的内容验证。
 9. 将启动器参数重命名为 `launchTargetPath`，并修正 Shell 激活语义：只要没有抛出异常，就表示请求已被接受，即使没有返回新的 `Process` 对象。
+10. 在 `HimeBot.Core` 中添加了 `IGameWindowLocator`、`GameWindowInfo` 和 `GameWindowLookupResult`。
+11. 在 `HimeBot.Platform.Windows` 中添加了 `WindowsGameWindowLocator`，能够筛选进程主窗口并处理未启动、窗口未就绪和多个候选项。
+12. 添加了内部 Win32 `GetClientRect` 声明，用游戏客户区像素表示窗口尺寸，不向 Core 暴露原生窗口句柄。
+13. 在 `MainViewModel`、组合根和 WPF 主窗口中接入“查找游戏窗口”命令，并显示进程 ID、窗口标题和客户区尺寸。
 
 本阶段已经完成的人工观察：
 
 - 直接从所在文件夹启动 `koisen.exe`，或者通过早期 HimeBot 可执行文件启动流程启动它，都会使其短暂打开后退出。
 - 在 HimeBot 之外双击 DMM 创建的桌面快捷方式，可以打开 DMM GAMES PLAYER 并启动游戏。
-- 通过当前 HimeBot `.url` 流程启动 DMM 并使 `koisen.exe` 保持运行，尚未完成人工验证，仍处于待验证状态。
+- 通过当前 HimeBot `.url` 流程可以启动 DMM，并使 `koisen.exe` 正常启动和保持运行。
 
 ## 当前仓库结构
 
@@ -71,10 +79,16 @@ src/HimeBot.App/
 
 src/HimeBot.Core/
 ├─ Launching/GameLaunchResult.cs
-└─ Ports/IGameLauncher.cs
+├─ Ports/IGameLauncher.cs
+├─ Ports/IGameWindowLocator.cs
+└─ Windowing/
+   ├─ GameWindowInfo.cs
+   └─ GameWindowLookupResult.cs
 
 src/HimeBot.Platform.Windows/
-└─ Launching/WindowsGameLauncher.cs
+├─ Launching/WindowsGameLauncher.cs
+├─ Native/NativeMethods.cs
+└─ Windowing/WindowsGameWindowLocator.cs
 ```
 
 ## 已验证的项目引用
@@ -126,21 +140,20 @@ HimeBot.App               -> bin/x64/Debug/net7.0-windows/HimeBot.App.dll
 
 目前没有测试项目或测试用例，因此未运行自动化测试，也不声明任何测试结果。
 
+窗口定位已经完成人工验证：游戏运行时能够识别主窗口并返回窗口标题与 `746 × 420` 客户区尺寸。针对同一运行窗口的诊断调用连续执行 10 次，结果保持一致。
+
 ## 未解决的决定
 
-- 通过 HimeBot 执行端到端启动仍待人工验证：需要确认选中的 `.url` 已交给 DMM GAMES PLAYER，并确认 DMM 能够启动 `koisen.exe` 且使其保持运行。
 - 后续的成功检测机制尚未决定。可能的信号包括检测游戏进程或游戏窗口；当前启动器有意只报告 Shell 已接受请求。
 - 尚未决定 HimeBot 应该继续要求用户选择 DMM 快捷方式、记住上一次选择，还是自动发现该快捷方式。
 
 ## 下一步目标
 
-人工验证 DMM 启动路径：
+获取一张游戏客户区截图：
 
-1. 运行 HimeBot，并选择 DMM 创建的 `恋戦.url` 快捷方式。
-2. 单击启动按钮，验证 DMM GAMES PLAYER 是否打开或获得焦点。
-3. 验证 DMM 是否启动 `koisen.exe`，以及游戏是否保持运行。
-4. 记录观察到的状态消息和任何失败行为。
+1. 复用已经验证的游戏窗口定位结果。
+2. 选择并验证适合游戏窗口的单帧捕获方式。
+3. 将一张客户区画面保存为 PNG 诊断文件。
+4. 人工确认截图不是黑屏、内容与游戏一致，并且图片尺寸与客户区尺寸一致。
 
-在完成这些步骤之前，DMM 是否收到 HimeBot 请求以及 `koisen.exe` 的最终启动结果都必须保持“待验证”状态。当前的成功结果只表示“Windows Shell 已接受请求”。
-
-在这个仅涉及启动功能的步骤中，不要创建 `HimeBot.Game.Koihime`、`HimeBot.Vision`、OCR、捕获或输入代码。
+这一步只验证一次性截图，不实现连续捕获、实时预览、OCR、鼠标输入或任务状态机。

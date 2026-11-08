@@ -72,11 +72,11 @@ HimeBot/
 
 ### 3.1 当前已创建的最小架构
 
-为承载“指定游戏目录并打开游戏”的第一个功能，当前只创建以下项目：
+用户实际动手开发的解决方案目前位于仓库根目录的 `HimeBot.sln` 和 `src/`；`Tutorial/` 继续作为智能体生成参考实现的独立工作区。实际项目当前包含：
 
-- `HimeBot.App`：WPF 程序入口和空白主窗口。
-- `HimeBot.Core`：预留跨模块模型和外部依赖的 seam，目前不包含功能代码。
-- `HimeBot.Platform.Windows`：预留 Windows 进程与窗口 adapter，目前不包含功能代码。
+- `HimeBot.App`：WPF 程序入口、启动目标选择、启动命令、窗口查找命令和状态显示。
+- `HimeBot.Core`：游戏启动与窗口定位的结果模型和外部边界接口。
+- `HimeBot.Platform.Windows`：DMM Shell 启动、Windows 进程窗口定位和客户区尺寸读取。
 
 当前引用方向为：
 
@@ -88,13 +88,15 @@ HimeBot.App
 HimeBot.Platform.Windows ──> HimeBot.Core
 ```
 
-该功能开始实现后，代码按以下职责放置：
+当前代码按以下职责放置：
 
-| 职责 | 计划目录 | 当前状态 |
+| 职责 | 目录 | 当前状态 |
 |---|---|---|
-| 选择目录和显示启动状态 | `Tutorial/src/HimeBot.App/Views/`、`Tutorial/src/HimeBot.App/ViewModels/` | 尚未实现 |
-| 启动游戏的 interface 与结果模型 | `Tutorial/src/HimeBot.Core/Ports/`、`Tutorial/src/HimeBot.Core/Automation/` | 尚未创建 |
-| 校验路径并启动 Windows 进程的 adapter | `Tutorial/src/HimeBot.Platform.Windows/Launching/` | 尚未创建 |
+| 选择 DMM 快捷方式、启动、查找窗口和显示状态 | `src/HimeBot.App/` | 已实现并人工验证 |
+| 启动游戏的 interface 与结果模型 | `src/HimeBot.Core/Ports/`、`src/HimeBot.Core/Launching/` | 已实现 |
+| 窗口定位的 interface 与结果模型 | `src/HimeBot.Core/Ports/`、`src/HimeBot.Core/Windowing/` | 已实现 |
+| Shell 启动 adapter | `src/HimeBot.Platform.Windows/Launching/` | 已实现并人工验证 |
+| Windows 窗口定位与 Win32 客户区读取 | `src/HimeBot.Platform.Windows/Windowing/`、`src/HimeBot.Platform.Windows/Native/` | 已实现并人工验证 |
 
 `HimeBot.Game.Koihime`、`HimeBot.Vision` 和测试项目将在对应职责第一次需要时再创建。
 

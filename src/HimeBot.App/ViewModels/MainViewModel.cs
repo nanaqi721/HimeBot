@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 using HimeBot.App.FilePicking;
 using HimeBot.Core.Launching;
 using HimeBot.Core.Ports;
+using HimeBot.Core.Windowing;
 using System.IO;
 
 namespace HimeBot.App.ViewModels;
@@ -11,16 +12,19 @@ public sealed class MainViewModel : ObservableObject
 {
     private readonly IGameLaunchTargetPicker _gameLaunchTargetPicker;
     private readonly IGameLauncher _gameLauncher;
+    private readonly IGameWindowLocator _gameWindowLocator;
 
     private string _selectedLaunchTargetPath = string.Empty;
     private string _statusMessage = "请选择 DMM 游戏快捷方式。";
 
     public MainViewModel(
         IGameLaunchTargetPicker gameLaunchTargetPicker,
-        IGameLauncher gameLauncher)
+        IGameLauncher gameLauncher,
+        IGameWindowLocator gameWindowLocator)
     {
         _gameLaunchTargetPicker = gameLaunchTargetPicker;
         _gameLauncher = gameLauncher;
+        _gameWindowLocator = gameWindowLocator;
 
         SelectLaunchTargetCommand =
             new RelayCommand(SelectLaunchTarget);
@@ -29,6 +33,11 @@ public sealed class MainViewModel : ObservableObject
             new RelayCommand(
                 LaunchGame,
                 CanLaunchGame);
+        _gameWindowLocator = gameWindowLocator;
+
+        FindGameWindowCommand =
+            new RelayCommand(FindGameWindow);
+
     }
 
     public string SelectedLaunchTargetPath
@@ -58,6 +67,8 @@ public sealed class MainViewModel : ObservableObject
     public IRelayCommand SelectLaunchTargetCommand { get; }
 
     public IRelayCommand LaunchGameCommand { get; }
+
+    public IRelayCommand FindGameWindowCommand { get; }
 
     private void SelectLaunchTarget()
     {
@@ -141,5 +152,26 @@ public sealed class MainViewModel : ObservableObject
         {
             return false;
         }
+    }
+
+    private void FindGameWindow()
+    {
+        GameWindowLookupResult result =
+            _gameWindowLocator.FindByProcessName(
+                "koisen");
+
+        if (!result.IsSuccess || result.Window is null)
+        {
+            StatusMessage = result.Message;
+            return;
+        }
+
+        GameWindowInfo window = result.Window;
+
+        StatusMessage =
+            $"已找到游戏窗口。" +
+            $"进程 ID：{window.ProcessId}；" +
+            $"标题：{window.Title}；" +
+            $"客户区：{window.ClientWidth} × {window.ClientHeight}。";
     }
 }

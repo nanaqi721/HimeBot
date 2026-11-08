@@ -1,72 +1,145 @@
-﻿
-
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using HimeBot.App.FilePicking;
+using HimeBot.Core.Launching;
+using HimeBot.Core.Ports;
 using System.IO;
 
 namespace HimeBot.App.ViewModels;
 
 public sealed class MainViewModel : ObservableObject
-{ 
-    private const string ExpectedExecutableName = "koisen.exe";
+{
+    private readonly IGameLaunchTargetPicker _gameLaunchTargetPicker;
+    private readonly IGameLauncher _gameLauncher;
 
-    private readonly IGameExecutablePicker _gameExecutablePicker;
+    private string _selectedLaunchTargetPath = string.Empty;
+    private string _statusMessage = "请选择 DMM 游戏快捷方式。";
 
-    private string _selectedExecutablePath = string.Empty;
-    private string _statusMessage = "请选择 koisen.exe";
-
-    public MainViewModel(IGameExecutablePicker gameExecutablePicker)
+    public MainViewModel(
+        IGameLaunchTargetPicker gameLaunchTargetPicker,
+        IGameLauncher gameLauncher)
     {
-        _gameExecutablePicker = gameExecutablePicker;
+        _gameLaunchTargetPicker = gameLaunchTargetPicker;
+        _gameLauncher = gameLauncher;
 
-        SelectExecutableCommand = new RelayCommand(SelectExecutable);
-        
+        SelectLaunchTargetCommand =
+            new RelayCommand(SelectLaunchTarget);
+
+        LaunchGameCommand =
+            new RelayCommand(
+                LaunchGame,
+                CanLaunchGame);
     }
 
-    public string SelectedExecutablePath
+    public string SelectedLaunchTargetPath
     {
-        get => _selectedExecutablePath;
-        private set => SetProperty(
-            ref _selectedExecutablePath,
-            value);
+        get => _selectedLaunchTargetPath;
+
+        private set
+        {
+            if (SetProperty(
+                    ref _selectedLaunchTargetPath,
+                    value))
+            {
+                LaunchGameCommand.NotifyCanExecuteChanged();
+            }
+        }
     }
+
     public string StatusMessage
     {
         get => _statusMessage;
+
         private set => SetProperty(
             ref _statusMessage,
             value);
     }
 
-    public IRelayCommand SelectExecutableCommand { get; }
+    public IRelayCommand SelectLaunchTargetCommand { get; }
 
-    private void SelectExecutable()
+    public IRelayCommand LaunchGameCommand { get; }
+
+    private void SelectLaunchTarget()
     {
         string? selectedPath =
-            _gameExecutablePicker.PickExecutable();
+            _gameLaunchTargetPicker.PickLaunchTarget();
 
         if (string.IsNullOrWhiteSpace(selectedPath))
         {
             return;
         }
 
-        string selectedFileName =
-            Path.GetFileName(selectedPath);
-
-        if (!string.Equals(
-                selectedFileName,
-                ExpectedExecutableName,
-                StringComparison.OrdinalIgnoreCase))
+        if (!IsDmmGameShortcut(selectedPath))
         {
-            SelectedExecutablePath = string.Empty;
+            SelectedLaunchTargetPath = string.Empty;
             StatusMessage =
-                $"请选择名为 {ExpectedExecutableName} 的游戏程序。";
+                "选择的文件不是有效的 DMM 游戏快捷方式。";
 
             return;
         }
 
-        SelectedExecutablePath = selectedPath;
-        StatusMessage = $"已选择 {ExpectedExecutableName}。";
+        SelectedLaunchTargetPath = selectedPath;
+        StatusMessage = "已选择 DMM 游戏快捷方式。";
+    }
+
+    private bool CanLaunchGame()
+    {
+        return !string.IsNullOrWhiteSpace(
+            SelectedLaunchTargetPath);
+    }
+
+    private void LaunchGame()
+    {
+        GameLaunchResult result =
+            _gameLauncher.Launch(
+                SelectedLaunchTargetPath);
+
+        StatusMessage = result.Message;
+    }
+
+    private static bool IsDmmGameShortcut(
+        string launchTargetPath)
+    {
+        if (!string.Equals(
+                Path.GetExtension(launchTargetPath),
+                ".url",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        try
+        {
+            string? urlLine = File
+                .ReadLines(launchTargetPath)
+                .FirstOrDefault(line =>
+                    line.StartsWith(
+                        "URL=",
+                        StringComparison.OrdinalIgnoreCase));
+
+            if (urlLine is null)
+            {
+                return false;
+            }
+
+            string rawUri = urlLine["URL=".Length..].Trim();
+
+            return Uri.TryCreate(
+                       rawUri,
+                       UriKind.Absolute,
+                       out Uri? uri)
+                   && string.Equals(
+                       uri.Scheme,
+                       "dmmgameplayer",
+                       StringComparison.OrdinalIgnoreCase);
+        }
+        catch (IOException)
+        {
+            return false;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return false;
+        }
     }
 }

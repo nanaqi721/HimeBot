@@ -2,6 +2,7 @@
 
 using HimeBot.App.FilePicking;
 using HimeBot.App.ViewModels;
+using HimeBot.Platform.Windows.Launching;
 using System.Windows;
 
 namespace HimeBot.App;
@@ -12,8 +13,14 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
-        var gameExecutablePicker = new OpenFileDialogGameExecutablePicker();
-        var mainViewModel = new MainViewModel(gameExecutablePicker);
+        var gameLaunchTargetPicker =
+            new OpenFileDialogGameLaunchTargetPicker();
+
+        var gameLauncher = new WindowsGameLauncher();
+
+        var mainViewModel = new MainViewModel(
+            gameLaunchTargetPicker,
+            gameLauncher);
         var mainWindow = new MainWindow
         {
             DataContext = mainViewModel

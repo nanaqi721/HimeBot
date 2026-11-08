@@ -5,7 +5,7 @@ namespace HimeBot.Core.Ports;
 
 public interface IGameLauncher
 {
-    GameLaunchResult Launch(string executablePath);
+    GameLaunchResult Launch(string launchTargetPath);
 }
 
 

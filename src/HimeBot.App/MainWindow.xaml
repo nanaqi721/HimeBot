@@ -14,9 +14,10 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <TextBlock Text="游戏程序"
+        <TextBlock Text="DMM 游戏快捷方式"
                    FontWeight="SemiBold" />
 
         <Grid Grid.Row="1"
@@ -28,16 +29,23 @@
             </Grid.ColumnDefinitions>
 
             <TextBox Margin="0,0,8,0"
-             IsReadOnly="True"
-             Text="{Binding SelectedExecutablePath, Mode=OneWay}" />
+                     IsReadOnly="True"
+                     Text="{Binding SelectedLaunchTargetPath, Mode=OneWay}" />
 
             <Button Grid.Column="1"
-            Padding="16,4"
-            Content="选择文件..."
-            Command="{Binding SelectExecutableCommand}" />
+                    Padding="16,4"
+                    Content="选择 DMM 快捷方式..."
+                    Command="{Binding SelectLaunchTargetCommand}" />
         </Grid>
 
-        <TextBlock Grid.Row="2"
+        <Button Grid.Row="2"
+        HorizontalAlignment="Right"
+        Padding="16,6"
+        Content="启动游戏"
+        Command="{Binding LaunchGameCommand}" />
+
+        <TextBlock Grid.Row="3"
+                   Margin="0,16,0,0"
                    Text="{Binding StatusMessage}"
                    TextWrapping="Wrap" />
 

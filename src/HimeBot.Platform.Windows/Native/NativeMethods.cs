@@ -11,6 +11,13 @@ internal struct NativeRect
 	public int Bottom;
 }
 
+[StructLayout(LayoutKind.Sequential)]
+internal struct NativePoint
+{
+	public int X;
+	public int Y;
+}
+
 internal static class NativeMethods
 {
 	[DllImport(
@@ -20,4 +27,12 @@ internal static class NativeMethods
 	internal static extern bool GetClientRect(
 		IntPtr windowHandle,
 		out NativeRect clientRectangle);
+
+    [DllImport(
+    "user32.dll",
+    SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool ClientToScreen(
+    IntPtr windowHandle,
+    ref NativePoint point);
 }

@@ -4,6 +4,7 @@ using HimeBot.App.FilePicking;
 using HimeBot.Core.Launching;
 using HimeBot.Core.Ports;
 using HimeBot.Core.Windowing;
+using HimeBot.Platform.Windows.ScreenCapture;
 using System.IO;
 
 namespace HimeBot.App.ViewModels;
@@ -13,18 +14,22 @@ public sealed class MainViewModel : ObservableObject
     private readonly IGameLaunchTargetPicker _gameLaunchTargetPicker;
     private readonly IGameLauncher _gameLauncher;
     private readonly IGameWindowLocator _gameWindowLocator;
+    private readonly WindowsGameScreenshotCapture _gameScreenshotCapture;
 
     private string _selectedLaunchTargetPath = string.Empty;
     private string _statusMessage = "请选择 DMM 游戏快捷方式。";
+    private GameWindowInfo? _locatedGameWindow;
 
     public MainViewModel(
         IGameLaunchTargetPicker gameLaunchTargetPicker,
         IGameLauncher gameLauncher,
-        IGameWindowLocator gameWindowLocator)
+        IGameWindowLocator gameWindowLocator,
+        WindowsGameScreenshotCapture gameScreenshotCapture)
     {
         _gameLaunchTargetPicker = gameLaunchTargetPicker;
         _gameLauncher = gameLauncher;
         _gameWindowLocator = gameWindowLocator;
+        _gameScreenshotCapture = gameScreenshotCapture;
 
         SelectLaunchTargetCommand =
             new RelayCommand(SelectLaunchTarget);
@@ -33,11 +38,14 @@ public sealed class MainViewModel : ObservableObject
             new RelayCommand(
                 LaunchGame,
                 CanLaunchGame);
-        _gameWindowLocator = gameWindowLocator;
 
         FindGameWindowCommand =
             new RelayCommand(FindGameWindow);
 
+        CaptureGameScreenshotCommand =
+            new AsyncRelayCommand(
+                CaptureGameScreenshotAsync,
+                CanCaptureGameScreenshot);
     }
 
     public string SelectedLaunchTargetPath
@@ -69,6 +77,11 @@ public sealed class MainViewModel : ObservableObject
     public IRelayCommand LaunchGameCommand { get; }
 
     public IRelayCommand FindGameWindowCommand { get; }
+
+    public IAsyncRelayCommand CaptureGameScreenshotCommand
+    {
+        get;
+    }
 
     private void SelectLaunchTarget()
     {
@@ -162,16 +175,75 @@ public sealed class MainViewModel : ObservableObject
 
         if (!result.IsSuccess || result.Window is null)
         {
+            SetLocatedGameWindow(null);
             StatusMessage = result.Message;
             return;
         }
 
         GameWindowInfo window = result.Window;
+        SetLocatedGameWindow(window);
 
         StatusMessage =
             $"已找到游戏窗口。" +
             $"进程 ID：{window.ProcessId}；" +
             $"标题：{window.Title}；" +
             $"客户区：{window.ClientWidth} × {window.ClientHeight}。";
+    }
+
+    private void SetLocatedGameWindow(
+    GameWindowInfo? window)
+    {
+        _locatedGameWindow = window;
+
+        CaptureGameScreenshotCommand
+            .NotifyCanExecuteChanged();
+    }
+
+    private bool CanCaptureGameScreenshot()
+    {
+        return _locatedGameWindow is not null;
+    }
+
+    private async Task CaptureGameScreenshotAsync(
+        CancellationToken cancellationToken)
+    {
+        GameWindowInfo? window =
+            _locatedGameWindow;
+
+        if (window is null)
+        {
+            StatusMessage =
+                "请先查找游戏窗口。";
+
+            return;
+        }
+
+        string captureDirectory =
+            Path.Combine(
+                Environment.GetFolderPath(
+                    Environment.SpecialFolder.LocalApplicationData),
+                "HimeBot",
+                "captures");
+
+        string fileName =
+            $"koihime-" +
+            $"{DateTime.Now:yyyyMMdd-HHmmss-fff}.png";
+
+        string outputPath =
+            Path.Combine(
+                captureDirectory,
+                fileName);
+
+        GameScreenshotCaptureResult result =
+            await _gameScreenshotCapture
+                .CaptureToPngAsync(
+                    window,
+                    outputPath,
+                    cancellationToken);
+
+        StatusMessage = result.IsSuccess
+            ? $"{result.Message} " +
+              $"图片尺寸：{result.Width} × {result.Height}。"
+            : result.Message;
     }
 }

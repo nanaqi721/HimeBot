@@ -3,6 +3,7 @@
 using HimeBot.App.FilePicking;
 using HimeBot.App.ViewModels;
 using HimeBot.Platform.Windows.Launching;
+using HimeBot.Platform.Windows.ScreenCapture;
 using HimeBot.Platform.Windows.Windowing;
 using System.Windows;
 
@@ -22,10 +23,13 @@ public partial class App : Application
         var gameWindowLocator =
             new WindowsGameWindowLocator();
 
+        var gameScreenShotCapture = new WindowsGameScreenshotCapture();
+
         var mainViewModel = new MainViewModel(
             gameLaunchTargetPicker,
             gameLauncher,
-            gameWindowLocator);
+            gameWindowLocator,
+            gameScreenShotCapture);
         var mainWindow = new MainWindow
         {
             DataContext = mainViewModel

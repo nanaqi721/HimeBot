@@ -20,6 +20,8 @@ internal struct NativePoint
 
 internal static class NativeMethods
 {
+	internal const uint PrintWindowClientOnly = 0x00000001;
+
 	[DllImport(
 		"user32.dll",
 		SetLastError = true)]
@@ -35,4 +37,13 @@ internal static class NativeMethods
     internal static extern bool ClientToScreen(
     IntPtr windowHandle,
     ref NativePoint point);
+
+	[DllImport(
+		"user32.dll",
+		SetLastError = true)]
+	[return: MarshalAs(UnmanagedType.Bool)]
+	internal static extern bool PrintWindow(
+		IntPtr windowHandle,
+		IntPtr destinationDeviceContext,
+		uint flags);
 }

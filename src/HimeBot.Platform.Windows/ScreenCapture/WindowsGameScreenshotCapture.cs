@@ -78,6 +78,21 @@ public sealed class WindowsGameScreenshotCapture
                     "游戏客户区尺寸无效。");
             }
 
+            var clientOrigin = new NativePoint
+            {
+                X = 0,
+                Y = 0
+            };
+            // 获取游戏窗口左上角坐标相对于整个屏幕的位置
+            if (!NativeMethods.ClientToScreen(
+                    windowHandle,
+                    ref clientOrigin))
+            {
+                return Failure(
+                    GetLastWin32ErrorMessage(
+                        "转换客户区坐标失败"));
+            }
+
             string fullOutputPath =
                 Path.GetFullPath(outputPath);
 
@@ -98,29 +113,13 @@ public sealed class WindowsGameScreenshotCapture
             using Graphics graphics =
                 Graphics.FromImage(bitmap);
 
-            IntPtr deviceContext =
-                graphics.GetHdc();
-
-            try
-            {
-                bool wasRendered =
-                    NativeMethods.PrintWindow(
-                        windowHandle,
-                        deviceContext,
-                        NativeMethods.PrintWindowClientOnly);
-
-                if (!wasRendered)
-                {
-                    return Failure(
-                        GetLastWin32ErrorMessage(
-                            "请求游戏窗口绘制截图失败"));
-                }
-            }
-            finally
-            {
-                graphics.ReleaseHdc(
-                    deviceContext);
-            }
+            graphics.CopyFromScreen(
+                clientOrigin.X,
+                clientOrigin.Y,
+                0,
+                0,
+                new Size(width, height),
+                CopyPixelOperation.SourceCopy);
 
             cancellationToken.ThrowIfCancellationRequested();
 

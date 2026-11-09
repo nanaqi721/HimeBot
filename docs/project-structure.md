@@ -17,11 +17,12 @@ HimeBot 是一个基于 C# 和 WPF 的游戏 OCR 自动化程序。初期面向�
 ## 2. 技术基线
 
 - 运行时：`.NET 7`
-- 目标框架：`net7.0-windows`
+- 目标框架：`net7.0-windows10.0.19041.0`
 - 桌面界面：WPF
 - 架构方式：MVVM
 - 默认平台：x64
 - MVVM 工具：`CommunityToolkit.Mvvm`
+- Direct3D 11 绑定：`Vortice.Direct3D11` 3.5.0
 - 依赖注入、配置和日志：`Microsoft.Extensions.*`
 - 测试框架：xUnit
 - 图像处理候选：OpenCvSharp
@@ -29,7 +30,7 @@ HimeBot 是一个基于 C# 和 WPF 的游戏 OCR 自动化程序。初期面向�
 
 OCR 和图像处理库包含原生依赖，因此初期统一使用 x64，不使用 AnyCPU。
 
-`.NET 7` 是当前项目的明确约束。除非项目所有者主动修改该决定，否则项目文件、依赖选择和示例代码都保持兼容 `net7.0-windows`。
+`.NET 7` 是当前项目的明确约束。除非项目所有者主动修改该决定，否则项目文件、依赖选择和示例代码都保持兼容 `.NET 7`。目标框架中的 Windows 10 版本用于开放 Windows Graphics Capture 所需的 Windows SDK 接口，不表示升级到更高的 .NET 版本。
 
 ## 3. Solution 目录
 
@@ -76,7 +77,7 @@ HimeBot/
 
 - `HimeBot.App`：WPF 程序入口、启动目标选择、启动命令、窗口查找命令和状态显示。
 - `HimeBot.Core`：游戏启动与窗口定位的结果模型和外部边界接口。
-- `HimeBot.Platform.Windows`：DMM Shell 启动、Windows 进程窗口定位和客户区尺寸读取。
+- `HimeBot.Platform.Windows`：DMM Shell 启动、Windows 进程窗口定位、客户区尺寸读取和单帧截图。
 
 当前引用方向为：
 
@@ -97,6 +98,7 @@ HimeBot.Platform.Windows ──> HimeBot.Core
 | 窗口定位的 interface 与结果模型 | `src/HimeBot.Core/Ports/`、`src/HimeBot.Core/Windowing/` | 已实现 |
 | Shell 启动 adapter | `src/HimeBot.Platform.Windows/Launching/` | 已实现并人工验证 |
 | Windows 窗口定位与 Win32 客户区读取 | `src/HimeBot.Platform.Windows/Windowing/`、`src/HimeBot.Platform.Windows/Native/` | 已实现并人工验证 |
+| 单帧截图与 Windows Graphics Capture 准备 | `src/HimeBot.Platform.Windows/ScreenCapture/` | GDI 截图链路已验证；WGC 编译基线已验证，实际帧捕获待实现 |
 
 `HimeBot.Game.Koihime`、`HimeBot.Vision` 和测试项目将在对应职责第一次需要时再创建。
 

@@ -1,10 +1,13 @@
 ﻿using HimeBot.Core.Windowing;
 using HimeBot.Platform.Windows.Native;
+using SharpGen.Runtime;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
+using Windows.Graphics.Capture;
+using Windows.Graphics.DirectX;
 
 namespace HimeBot.Platform.Windows.ScreenCapture;
 
@@ -21,6 +24,13 @@ public sealed class WindowsGameScreenshotCapture
         {
             return Task.FromResult(
                 Failure("截图输出路径不能为空。"));
+        }
+
+        if (!GraphicsCaptureSession.IsSupported())
+        {
+            return Task.FromResult(
+                Failure(
+                    "当前系统或图形设备不支持 Windows Graphics Capture。"));
         }
 
         return Task.Run(
@@ -54,6 +64,33 @@ public sealed class WindowsGameScreenshotCapture
                 return Failure(
                     "游戏进程仍在运行，但主窗口不可用。");
             }
+
+            GraphicsCaptureItem captureItem =GraphicsCaptureItemFactory.CreateForWindow(
+                windowHandle);
+
+            var captureSize = captureItem.Size;
+
+            if (captureSize.Width <= 0 ||
+                captureSize.Height <= 0)
+            {
+                return Failure(
+                    "Windows Graphics Capture 返回的窗口尺寸无效。");
+            }
+
+            using Direct3D11CaptureDevice captureDevice =Direct3D11CaptureDevice.Create();
+
+            using Direct3D11CaptureFramePool framePool =
+                Direct3D11CaptureFramePool.CreateFreeThreaded(
+                captureDevice.WinRtDevice,
+                DirectXPixelFormat.B8G8R8A8UIntNormalized,
+                1,
+                captureSize);
+
+            using GraphicsCaptureSession captureSession =
+                framePool.CreateCaptureSession(
+                    captureItem);
+
+            captureSession.StartCapture();
 
             if (!NativeMethods.GetClientRect(
                     windowHandle,
@@ -129,7 +166,10 @@ public sealed class WindowsGameScreenshotCapture
 
             return new GameScreenshotCaptureResult(
                 true,
-                $"截图已保存：{fullOutputPath}",
+                $"WGC 已识别游戏窗口：" +
+                $"{captureSize.Width} × {captureSize.Height}；" +
+                $"Direct3D 11 帧池与捕获会话已启动；" +
+                $"当前截图仍由旧方式保存：{fullOutputPath}",
                 fullOutputPath,
                 width,
                 height);
@@ -162,6 +202,20 @@ public sealed class WindowsGameScreenshotCapture
         {
             return Failure(
                 $"没有权限保存截图：{exception.Message}");
+        }
+        catch (SharpGenException exception)
+        {
+            return Failure(
+                $"Direct3D 11 设备创建失败：" +
+                $"{exception.Message} " +
+                $"(HRESULT: 0x{exception.HResult:X8})");
+        }
+        catch (COMException exception)
+        {
+            return Failure(
+                $"Windows Graphics Capture 初始化失败：" +
+                $"{exception.Message} " +
+                $"(HRESULT: 0x{exception.HResult:X8})");
         }
         catch (ExternalException exception)
         {

@@ -83,11 +83,15 @@ HimeBot.Vision ────────────> HimeBot.Core
 ```text
 docs/
 ├─ project-structure.md       # 架构、目录规划和实现阶段
-├─ decisions/                 # 需要长期保留的架构决定及其原因
-└─ guides/                    # 设置、调试、捕获、OCR 和发布流程
+├─ decisions/
+│  └─ 0001-use-windows-graphics-capture.md
+└─ guides/
+   └─ windows-graphics-capture.md
 ```
 
 项目布局或引用方向发生变化时，在同一次改动中更新 `docs/project-structure.md`。当某项决定的原因需要跨越当前对话长期保留时，将其记录在 `docs/decisions/`。可重复执行的人工操作流程放入 `docs/guides/`。
+
+修改 Windows 截图、Direct3D/WinRT 互操作、GPU 像素读取或客户区裁剪前，先阅读 [`docs/decisions/0001-use-windows-graphics-capture.md`](docs/decisions/0001-use-windows-graphics-capture.md) 和 [`docs/guides/windows-graphics-capture.md`](docs/guides/windows-graphics-capture.md)。
 
 ## C# 与 WPF 约定
 
@@ -99,13 +103,27 @@ docs/
 - 使用游戏客户端像素存储坐标，并在 Windows 模块内部完成 WPF DIP 或屏幕坐标转换。
 - 记录 OCR 文本、规范化值、置信度、区域、操作、重试和失败截图，以便诊断。
 
+## Windows 截图约束
+
+- 生产截图使用 `WindowsGameScreenshotCapture` 的 Windows Graphics Capture 路径；`CopyFromScreen` 和 `PrintWindow` 只保留为已经否决的实验结论，不作为自动后备路径。
+- WGC 帧是包含非客户区的可见窗口帧。客户区裁剪必须由 `ClientToScreen` 和 DWM 扩展窗口边界动态计算，不得硬编码标题栏或边框像素。
+- 在当前 `.NET 7`、C#/WinRT 与 `Vortice.Direct3D11` 3.5.0 组合下，使用项目现有的原生 `CreateDirect3D11DeviceFromDXGIDevice` 加 `WinRT.MarshalInterface<T>.FromAbi` 桥接；不要改回 Vortice 泛型转换辅助方法。
+- GPU 回读必须先复制到 staging texture，分别遵守源 `RowPitch` 与目标 Bitmap `Stride`，并确保 `Map` 后在 `finally` 中 `Unmap`。
+
 ## 验证
 
-解决方案创建后，在仓库根目录运行以下默认检查：
+当前用户实际开发项目位于仓库根目录。用户明确要求修改该项目后，在仓库根目录运行：
+
+```powershell
+dotnet build HimeBot.sln --configuration Debug --property:Platform=x64
+dotnet test HimeBot.sln --configuration Debug --property:Platform=x64
+```
+
+智能体生成的参考实现仍使用：
 
 ```powershell
 dotnet build Tutorial/HimeBot.sln
 dotnet test Tutorial/HimeBot.sln
 ```
 
-只有在受影响的项目构建成功、相关测试通过、架构文档反映了结构变化，并且用户获得了适合初学者的验证步骤后，改动才算完成。如果因为项目尚未创建而无法运行某项检查，应明确说明，不能虚构成功结果。
+只有在受影响的项目构建成功、相关测试通过、架构文档反映了结构变化，并且用户获得了适合初学者的验证步骤后，改动才算完成。如果测试项目尚未创建或某项检查无法运行，应明确说明，不能虚构成功结果。

@@ -71,35 +71,6 @@ internal sealed class Direct3D11CaptureDevice : IDisposable
         }
     }
 
-    /*internal static Direct3D11CaptureDevice Create()
-    {
-        ID3D11Device nativeDevice =
-            D3D11.D3D11CreateDevice(
-                DriverType.Hardware,
-                DeviceCreationFlags.BgraSupport);
-
-        try
-        {
-            using IDXGIDevice dxgiDevice =
-                nativeDevice.QueryInterface<IDXGIDevice>();
-
-            IDirect3DDevice winRtDevice =
-                D3D11.CreateDirect3D11DeviceFromDXGIDevice<
-                    IDirect3DDevice>(
-                    dxgiDevice);
-
-            return new Direct3D11CaptureDevice(
-                nativeDevice,
-                winRtDevice);
-        }
-        catch
-        {
-            nativeDevice.Dispose();
-            throw;
-        }
-    }*/
-
-
 
     public void Dispose()
     {

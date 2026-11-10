@@ -40,8 +40,10 @@ HimeBot/
 ├─ PROJECT_STATUS.md
 ├─ docs/
 │  ├─ project-structure.md
-│  ├─ decisions/              # 需要长期保留原因的架构决定，按需创建
-│  └─ guides/                 # 安装、调试、OCR 和发布操作指南，按需创建
+│  ├─ decisions/
+│  │  └─ 0001-use-windows-graphics-capture.md
+│  └─ guides/
+│     └─ windows-graphics-capture.md
 │
 └─ Tutorial/                   # Agent 生成的教学参考项目
    ├─ HimeBot.sln
@@ -98,7 +100,7 @@ HimeBot.Platform.Windows ──> HimeBot.Core
 | 窗口定位的 interface 与结果模型 | `src/HimeBot.Core/Ports/`、`src/HimeBot.Core/Windowing/` | 已实现 |
 | Shell 启动 adapter | `src/HimeBot.Platform.Windows/Launching/` | 已实现并人工验证 |
 | Windows 窗口定位与 Win32 客户区读取 | `src/HimeBot.Platform.Windows/Windowing/`、`src/HimeBot.Platform.Windows/Native/` | 已实现并人工验证 |
-| 单帧截图与 Windows Graphics Capture 准备 | `src/HimeBot.Platform.Windows/ScreenCapture/` | GDI 截图链路已验证；WGC 编译基线已验证，实际帧捕获待实现 |
+| 单帧截图与 Windows Graphics Capture | `src/HimeBot.Platform.Windows/ScreenCapture/` | WGC 遮挡隔离与客户区动态裁剪均已人工运行验证 |
 
 `HimeBot.Game.Koihime`、`HimeBot.Vision` 和测试项目将在对应职责第一次需要时再创建。
 
@@ -243,15 +245,20 @@ public sealed record SelectStage(StageId StageId) : GameIntent;
 
 ```text
 HimeBot.Platform.Windows/
-├─ WindowsGameWindow.cs
-├─ WindowLocator.cs
+├─ Launching/
+│  └─ WindowsGameLauncher.cs
+├─ Windowing/
+│  └─ WindowsGameWindowLocator.cs
 ├─ ScreenCapture/
-│  ├─ WindowsGraphicsCaptureAdapter.cs
-│  └─ CaptureFrameConverter.cs
+│  ├─ WindowsGameScreenshotCapture.cs
+│  ├─ GraphicsCaptureItemFactory.cs
+│  ├─ Direct3D11CaptureDevice.cs
+│  ├─ Direct3D11SurfaceInterop.cs
+│  └─ GameScreenshotCaptureResult.cs
 ├─ Input/
-│  └─ SendInputAdapter.cs
+│  └─ SendInputAdapter.cs                 # 尚未实现
 ├─ Dpi/
-│  └─ CoordinateTransformer.cs
+│  └─ CoordinateTransformer.cs            # 尚未实现
 └─ Native/
    └─ NativeMethods.cs
 ```
@@ -266,6 +273,21 @@ HimeBot.Platform.Windows/
 - 前台窗口和安全条件校验。
 
 核心逻辑统一使用游戏客户区像素坐标，不使用 WPF 的 DIP 坐标。
+
+当前单帧截图的内部数据流是：
+
+```text
+HWND
+  -> GraphicsCaptureItem
+  -> free-threaded frame pool
+  -> IDirect3DSurface / ID3D11Texture2D
+  -> staging texture
+  -> 按 RowPitch 读取 BGRA 像素
+  -> 按 DWM 边界动态裁剪客户区
+  -> 按 Bitmap Stride 写入 PNG
+```
+
+WGC 选型、Direct3D/WinRT 桥接和客户区裁剪约束见 `docs/decisions/0001-use-windows-graphics-capture.md`；可复现的验证与排错步骤见 `docs/guides/windows-graphics-capture.md`。
 
 ### 5.5 HimeBot.Vision
 

@@ -7,6 +7,8 @@ namespace HimeBot.Platform.Windows.ScreenCapture;
 
 internal static class Direct3D11SurfaceInterop
 {
+
+    // 这个 GUID 是原生 COM 接口 ID3D11Texture2D 的接口标识符，也称为 IID。
     private static readonly Guid ID3D11Texture2DGuid =
         new("6F15AAF2-D208-4E89-9AB4-489535D34F9C");
 

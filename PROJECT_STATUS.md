@@ -1,6 +1,6 @@
 # HimeBot 项目状态
 
-> 最近验证日期：2026-11-09
+> 最近验证日期：2026-11-10
 
 本文档用于在新对话中恢复 HimeBot 的开发上下文。先阅读 `AGENTS.md`，再阅读本文档。在更改布局、引用关系、模块职责、自动化流程或实现阶段之前，先阅读 `docs/project-structure.md`。
 
@@ -24,7 +24,9 @@ Windows 启动器现在使用 Shell 激活语义打开经过验证的 `.url`。�
 
 单帧截图链路已经从 WPF 经由异步 MVVM 命令连接到 `WindowsGameScreenshotCapture`，并能将 PNG 保存到 `%LocalAppData%/HimeBot/captures/`。`CopyFromScreen` 能够获得内容正确的客户区截图，但它读取屏幕最终合成像素，因此其他窗口遮挡游戏时，遮挡内容也会进入截图。随后验证的 Win32 `PrintWindow` 不会带入遮挡窗口，但对该游戏只返回黑屏，因此该实验已经回滚。
 
-下一种捕获方式已经确定为 Windows Graphics Capture。当前只完成了编译基线：目标框架明确为 `net7.0-windows10.0.19041.0`，`HimeBot.Platform.Windows` 固定引用支持 .NET 7 的 `Vortice.Direct3D11` 3.5.0，并在截图入口检查 `GraphicsCaptureSession.IsSupported()`。实际像素仍由 `CopyFromScreen` 提供；尚未创建 `GraphicsCaptureItem`、Direct3D 设备或 frame pool，也不声明 WGC 截图已经成功。
+Windows Graphics Capture 单帧客户区截图链路已经完成构建和人工运行验证：程序能够从窗口句柄创建 `GraphicsCaptureItem`，建立 Direct3D 11 设备、free-threaded frame pool 与捕获会话，取得第一帧并将 WinRT Surface 转换为原生 `ID3D11Texture2D`。帧通过 staging texture 映射到 CPU，按照 GPU `RowPitch` 逐行读取；随后使用 `ClientToScreen` 与 DWM 可见窗口边界动态计算客户区位置，并按 Bitmap `Stride` 写入 PNG。完整窗口阶段已确认其他窗口的遮挡不会进入 WGC 图片；最新人工运行确认客户区裁剪可以正常保存图片，并移除游戏标题栏和边框。
+
+WGC、Direct3D/WinRT 互操作与裁剪的长期决定记录在 `docs/decisions/0001-use-windows-graphics-capture.md`，实现流程和本次错误排查记录在 `docs/guides/windows-graphics-capture.md`。
 
 ## 最近学习阶段已完成
 
@@ -46,6 +48,9 @@ Windows 启动器现在使用 Shell 激活语义打开经过验证的 `.url`。�
 14. 添加了单帧截图结果、Windows 截图实现、异步截图命令和“保存客户区截图”按钮，并将诊断 PNG 保存到本地应用数据目录。
 15. 人工确认 `CopyFromScreen` 会捕获遮挡内容；`PrintWindow` 对游戏返回黑屏，相关实验代码已经回滚。
 16. 为 Windows Graphics Capture 设置了 Windows 10 19041 SDK 编译基线，固定了 `Vortice.Direct3D11` 3.5.0，并验证 `GraphicsCaptureSession.IsSupported()` 可用。
+17. 完成 `GraphicsCaptureItem`、Direct3D 11 设备、frame pool、第一帧等待与 WinRT/Direct3D 纹理互操作，并人工验证能够取得正确格式的 WGC 帧。
+18. 完成 staging texture、GPU 到 CPU 映射、按 `RowPitch` 复制和 PNG 编码；人工验证完整窗口截图不会包含其他窗口的遮挡内容。
+19. 接入基于 DWM 可见窗口边界的客户区动态裁剪；已通过 x64 构建和人工运行验证，最终图片不再包含游戏标题栏与边框。
 
 本阶段已经完成的人工观察：
 
@@ -62,7 +67,11 @@ HimeBot/
 ├─ Directory.Build.props
 ├─ HimeBot.sln
 ├─ docs/
-│  └─ project-structure.md
+│  ├─ project-structure.md
+│  ├─ decisions/
+│  │  └─ 0001-use-windows-graphics-capture.md
+│  └─ guides/
+│     └─ windows-graphics-capture.md
 ├─ learn/
 │  └─ 如何安全移动项目.md
 ├─ src/
@@ -95,7 +104,10 @@ src/HimeBot.Core/
 src/HimeBot.Platform.Windows/
 ├─ Launching/WindowsGameLauncher.cs
 ├─ Native/NativeMethods.cs
+├─ ScreenCapture/Direct3D11CaptureDevice.cs
+├─ ScreenCapture/Direct3D11SurfaceInterop.cs
 ├─ ScreenCapture/GameScreenshotCaptureResult.cs
+├─ ScreenCapture/GraphicsCaptureItemFactory.cs
 ├─ ScreenCapture/WindowsGameScreenshotCapture.cs
 └─ Windowing/WindowsGameWindowLocator.cs
 ```
@@ -151,7 +163,7 @@ HimeBot.App               -> bin/x64/Debug/net7.0-windows10.0.19041.0/HimeBot.Ap
 
 窗口定位已经完成人工验证：游戏运行时能够识别主窗口并返回窗口标题与 `746 × 420` 客户区尺寸。针对同一运行窗口的诊断调用连续执行 10 次，结果保持一致。
 
-截图实验已经人工验证：`CopyFromScreen` 在无遮挡时能够保存正确画面，但会带入遮挡内容；`PrintWindow` 对游戏返回黑屏。Windows Graphics Capture 当前仅完成依赖、目标框架和支持检查的编译验证，尚未进行帧捕获测试。
+截图实验已经人工验证：`CopyFromScreen` 在无遮挡时能够保存正确画面，但会带入遮挡内容；`PrintWindow` 对游戏返回黑屏。Windows Graphics Capture 能够保存内容正确的窗口 PNG，并且其他窗口遮挡游戏时不会把遮挡内容写入图片。客户区动态裁剪也已完成人工运行验证，最终 PNG 可以正常保存且不再包含标题栏和边框。
 
 ## 未解决的决定
 
@@ -160,11 +172,11 @@ HimeBot.App               -> bin/x64/Debug/net7.0-windows10.0.19041.0/HimeBot.Ap
 
 ## 下一步目标
 
-通过 Windows Graphics Capture 获取第一帧：
+在不改变当前截图行为的前提下整理 `WindowsGameScreenshotCapture` 的职责：
 
-1. 复用已经验证的进程 ID，重新取得窗口句柄并创建 `GraphicsCaptureItem`。
-2. 创建 Direct3D 11 设备和 free-threaded frame pool。
-3. 只等待并取得第一帧，报告 frame 的内容尺寸，然后立即释放 session、frame pool 和 GPU 资源。
-4. 第一帧稳定后，再实现客户区裁剪与 PNG 编码，并人工验证遮挡情况下的画面。
+1. 将 frame pool/第一帧等待保留为捕获编排职责。
+2. 评估把 staging texture 回读、客户区矩形计算和 Bitmap 写入提取为内部辅助类，使纯计算部分可以进行确定性测试。
+3. 只有出现第二个截图适配器或确定性的测试适配器需求时，再决定是否把截图入口抽成 Core interface。
+4. 截图模块边界稳定后，继续阶段 0 的下一项技术验证：`SendInput` 是否能被游戏接受。
 
-这一步只验证一次性截图，不实现连续捕获、实时预览、OCR、鼠标输入或任务状态机。
+当前仍只承诺一次性客户区截图，不实现连续捕获、实时预览、最小化窗口捕获、OCR、鼠标输入或任务状态机。

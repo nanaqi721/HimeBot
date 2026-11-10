@@ -1,11 +1,11 @@
-﻿using HimeBot.Core.Windowing;
-using HimeBot.Platform.Windows.Native;
+using HimeBot.Core.Windowing;
 using SharpGen.Runtime;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
+using Vortice.Direct3D11;
 using Windows.Graphics.Capture;
 using Windows.Graphics.DirectX;
 
@@ -48,13 +48,11 @@ public sealed class WindowsGameScreenshotCapture
     {
         try
         {
-            // 如果发送取消请求，且成功取消会抛出 OperationCanceledException
             cancellationToken.ThrowIfCancellationRequested();
 
             using Process process =
                 Process.GetProcessById(window.ProcessId);
 
-            // 刷新进程 清除缓存 重新获取窗口句柄
             process.Refresh();
             IntPtr windowHandle =
                 process.MainWindowHandle;
@@ -65,8 +63,9 @@ public sealed class WindowsGameScreenshotCapture
                     "游戏进程仍在运行，但主窗口不可用。");
             }
 
-            GraphicsCaptureItem captureItem =GraphicsCaptureItemFactory.CreateForWindow(
-                windowHandle);
+            GraphicsCaptureItem captureItem =
+                GraphicsCaptureItemFactory.CreateForWindow(
+                    windowHandle);
 
             var captureSize = captureItem.Size;
 
@@ -77,57 +76,180 @@ public sealed class WindowsGameScreenshotCapture
                     "Windows Graphics Capture 返回的窗口尺寸无效。");
             }
 
-            using Direct3D11CaptureDevice captureDevice =Direct3D11CaptureDevice.Create();
+            int firstFrameWidth;
+            int firstFrameHeight;
+            int textureWidth;
+            int textureHeight;
+            string textureFormat;
+            int mappedRowPitch;
+            int packedRowBytes;
+            byte[] framePixels;
 
-            using Direct3D11CaptureFramePool framePool =
-                Direct3D11CaptureFramePool.CreateFreeThreaded(
-                captureDevice.WinRtDevice,
-                DirectXPixelFormat.B8G8R8A8UIntNormalized,
-                1,
-                captureSize);
-
-            using GraphicsCaptureSession captureSession =
-                framePool.CreateCaptureSession(
-                    captureItem);
-
-            captureSession.StartCapture();
-
-            if (!NativeMethods.GetClientRect(
-                    windowHandle,
-                    out NativeRect clientRectangle))
+            using (Direct3D11CaptureDevice captureDevice =
+                   Direct3D11CaptureDevice.Create())
+            using (ManualResetEventSlim firstFrameReady =
+                   new(false))
+            using (Direct3D11CaptureFramePool framePool =
+                   Direct3D11CaptureFramePool.CreateFreeThreaded(
+                       captureDevice.WinRtDevice,
+                       DirectXPixelFormat.B8G8R8A8UIntNormalized,
+                       1,
+                       captureSize))
+            using (GraphicsCaptureSession captureSession =
+                   framePool.CreateCaptureSession(
+                       captureItem))
             {
-                return Failure(
-                    GetLastWin32ErrorMessage(
-                        "读取游戏客户区失败"));
-            }
+                framePool.FrameArrived += (_, _) =>
+                    firstFrameReady.Set();
 
-            int width =
-                clientRectangle.Right -
-                clientRectangle.Left;
+                captureSession.StartCapture();
 
-            int height =
-                clientRectangle.Bottom -
-                clientRectangle.Top;
+                bool frameArrived =
+                    firstFrameReady.Wait(
+                        TimeSpan.FromSeconds(5),
+                        cancellationToken);
 
-            if (width <= 0 || height <= 0)
-            {
-                return Failure(
-                    "游戏客户区尺寸无效。");
-            }
+                if (!frameArrived)
+                {
+                    return Failure(
+                        "等待 Windows Graphics Capture 第一帧超时。");
+                }
 
-            var clientOrigin = new NativePoint
-            {
-                X = 0,
-                Y = 0
-            };
-            // 获取游戏窗口左上角坐标相对于整个屏幕的位置
-            if (!NativeMethods.ClientToScreen(
-                    windowHandle,
-                    ref clientOrigin))
-            {
-                return Failure(
-                    GetLastWin32ErrorMessage(
-                        "转换客户区坐标失败"));
+                using Direct3D11CaptureFrame frame =
+                    framePool.TryGetNextFrame();
+
+                firstFrameWidth =
+                    frame.ContentSize.Width;
+
+                firstFrameHeight =
+                    frame.ContentSize.Height;
+
+                if (firstFrameWidth <= 0 ||
+                    firstFrameHeight <= 0)
+                {
+                    return Failure(
+                        "Windows Graphics Capture 返回的第一帧尺寸无效。");
+                }
+
+                using ID3D11Texture2D frameTexture =
+                    Direct3D11SurfaceInterop.GetTexture(
+                        frame.Surface);
+
+                Texture2DDescription textureDescription =
+                    frameTexture.Description;
+
+                textureWidth =
+                    checked((int)textureDescription.Width);
+
+                textureHeight =
+                    checked((int)textureDescription.Height);
+
+                textureFormat =
+                    textureDescription.Format.ToString();
+
+                if (textureWidth != firstFrameWidth ||
+                    textureHeight != firstFrameHeight)
+                {
+                    return Failure(
+                        $"WGC 帧尺寸与原生纹理尺寸不一致：" +
+                        $"帧为 {firstFrameWidth} × {firstFrameHeight}，" +
+                        $"纹理为 {textureWidth} × {textureHeight}。");
+                }
+
+                if (textureDescription.Format !=
+                    Vortice.DXGI.Format.B8G8R8A8_UNorm)
+                {
+                    return Failure(
+                        $"WGC 返回了尚未支持的纹理格式：" +
+                        $"{textureDescription.Format}。");
+                }
+
+                Texture2DDescription stagingDescription =
+                    textureDescription;
+
+                stagingDescription.Usage =
+                    ResourceUsage.Staging;
+
+                stagingDescription.BindFlags =
+                    BindFlags.None;
+
+                stagingDescription.CPUAccessFlags =
+                    CpuAccessFlags.Read;
+
+                stagingDescription.MiscFlags =
+                    ResourceOptionFlags.None;
+
+                using ID3D11Texture2D stagingTexture =
+                    captureDevice.NativeDevice.CreateTexture2D(
+                        stagingDescription);
+
+                using ID3D11DeviceContext deviceContext =
+                    captureDevice.NativeDevice.ImmediateContext;
+
+                deviceContext.CopyResource(
+                    stagingTexture,
+                    frameTexture);
+
+                deviceContext.Map(
+                    stagingTexture,
+                    0,
+                    MapMode.Read,
+                    MapFlags.None,
+                    out MappedSubresource mappedSubresource)
+                    .CheckError();
+
+                try
+                {
+                    if (mappedSubresource.DataPointer ==
+                        IntPtr.Zero)
+                    {
+                        return Failure(
+                            "映射 staging texture 后返回了空数据指针。");
+                    }
+
+                    mappedRowPitch =
+                        checked((int)mappedSubresource.RowPitch);
+
+                    packedRowBytes =
+                        checked(textureWidth * 4);
+
+                    if (mappedRowPitch < packedRowBytes)
+                    {
+                        return Failure(
+                            $"映射后的行跨度无效：" +
+                            $"{mappedRowPitch}，" +
+                            $"至少需要 {packedRowBytes} 字节。");
+                    }
+
+                    framePixels = new byte[
+                        checked(packedRowBytes * textureHeight)];
+
+                    cancellationToken.ThrowIfCancellationRequested();
+
+                    for (int row = 0;
+                         row < textureHeight;
+                         row++)
+                    {
+                        IntPtr sourceRow = IntPtr.Add(
+                            mappedSubresource.DataPointer,
+                            checked(row * mappedRowPitch));
+
+                        int destinationOffset =
+                            checked(row * packedRowBytes);
+
+                        Marshal.Copy(
+                            sourceRow,
+                            framePixels,
+                            destinationOffset,
+                            packedRowBytes);
+                    }
+                }
+                finally
+                {
+                    deviceContext.Unmap(
+                        stagingTexture,
+                        0);
+                }
             }
 
             string fullOutputPath =
@@ -141,22 +263,57 @@ public sealed class WindowsGameScreenshotCapture
                 Directory.CreateDirectory(directoryPath);
             }
 
-            // 创建空白位图
             using var bitmap = new Bitmap(
-                width,
-                height,
+                textureWidth,
+                textureHeight,
                 PixelFormat.Format32bppArgb);
 
-            using Graphics graphics =
-                Graphics.FromImage(bitmap);
+            var bitmapRectangle = new Rectangle(
+                0,
+                0,
+                textureWidth,
+                textureHeight);
 
-            graphics.CopyFromScreen(
-                clientOrigin.X,
-                clientOrigin.Y,
-                0,
-                0,
-                new Size(width, height),
-                CopyPixelOperation.SourceCopy);
+            BitmapData bitmapData = bitmap.LockBits(
+                bitmapRectangle,
+                ImageLockMode.WriteOnly,
+                PixelFormat.Format32bppArgb);
+
+            try
+            {
+                int bitmapRowPitch =
+                    Math.Abs(bitmapData.Stride);
+
+                if (bitmapRowPitch < packedRowBytes)
+                {
+                    return Failure(
+                        $"Bitmap 行跨度无效：" +
+                        $"{bitmapRowPitch}，" +
+                        $"至少需要 {packedRowBytes} 字节。");
+                }
+
+                for (int row = 0;
+                     row < textureHeight;
+                     row++)
+                {
+                    int sourceOffset =
+                        checked(row * packedRowBytes);
+
+                    IntPtr destinationRow = IntPtr.Add(
+                        bitmapData.Scan0,
+                        checked(row * bitmapData.Stride));
+
+                    Marshal.Copy(
+                        framePixels,
+                        sourceOffset,
+                        destinationRow,
+                        packedRowBytes);
+                }
+            }
+            finally
+            {
+                bitmap.UnlockBits(bitmapData);
+            }
 
             cancellationToken.ThrowIfCancellationRequested();
 
@@ -166,13 +323,13 @@ public sealed class WindowsGameScreenshotCapture
 
             return new GameScreenshotCaptureResult(
                 true,
-                $"WGC 已识别游戏窗口：" +
-                $"{captureSize.Width} × {captureSize.Height}；" +
-                $"Direct3D 11 帧池与捕获会话已启动；" +
-                $"当前截图仍由旧方式保存：{fullOutputPath}",
+                $"WGC PNG 已保存：" +
+                $"{textureWidth} × {textureHeight}，{textureFormat}；" +
+                $"GPU 行跨度：{mappedRowPitch} 字节；" +
+                $"路径：{fullOutputPath}",
                 fullOutputPath,
-                width,
-                height);
+                textureWidth,
+                textureHeight);
         }
         catch (OperationCanceledException)
         {
@@ -222,18 +379,6 @@ public sealed class WindowsGameScreenshotCapture
             return Failure(
                 $"PNG 编码失败：{exception.Message}");
         }
-    }
-
-    private static string GetLastWin32ErrorMessage(
-        string operation)
-    {
-        int errorCode =
-            Marshal.GetLastWin32Error();
-
-        string errorMessage =
-            new Win32Exception(errorCode).Message;
-
-        return $"{operation}：{errorMessage}";
     }
 
     private static GameScreenshotCaptureResult Failure(

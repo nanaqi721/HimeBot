@@ -102,6 +102,8 @@ HimeBot.Platform.Windows ──> HimeBot.Core
 | Windows 窗口定位与 Win32 客户区读取 | `src/HimeBot.Platform.Windows/Windowing/`、`src/HimeBot.Platform.Windows/Native/` | 已实现并人工验证 |
 | 单帧截图与 Windows Graphics Capture | `src/HimeBot.Platform.Windows/ScreenCapture/` | WGC 遮挡隔离与客户区动态裁剪均已人工运行验证 |
 
+`ScreenCapture/ClientCropRectangleCalculator.cs` 是为后续学习测试保留的内部纯计算类。它目前尚未接入生产截图路径，不代表现有裁剪行为已经重构；`WindowsGameScreenshotCapture` 仍使用自身的 `TryGetClientCropRectangle` 完成 Win32 查询、坐标计算和越界校验。
+
 `HimeBot.Game.Koihime`、`HimeBot.Vision` 和测试项目将在对应职责第一次需要时再创建。
 
 ## 4. 项目引用方向
@@ -251,6 +253,7 @@ HimeBot.Platform.Windows/
 │  └─ WindowsGameWindowLocator.cs
 ├─ ScreenCapture/
 │  ├─ WindowsGameScreenshotCapture.cs
+│  ├─ ClientCropRectangleCalculator.cs    # 已保留，尚未接入生产截图路径
 │  ├─ GraphicsCaptureItemFactory.cs
 │  ├─ Direct3D11CaptureDevice.cs
 │  ├─ Direct3D11SurfaceInterop.cs
@@ -288,6 +291,8 @@ HWND
 ```
 
 WGC 选型、Direct3D/WinRT 桥接和客户区裁剪约束见 `docs/decisions/0001-use-windows-graphics-capture.md`；可复现的验证与排错步骤见 `docs/guides/windows-graphics-capture.md`。
+
+`ClientCropRectangleCalculator` 接受托管的 `Size` 与 `Point`，只负责裁剪起点、尺寸有效性和帧范围校验，不调用 Win32、WGC 或 Direct3D。当前保留它是为了以后引入测试时继续评估；在接入之前，生产数据流仍完全由 `WindowsGameScreenshotCapture` 执行。
 
 ### 5.5 HimeBot.Vision
 

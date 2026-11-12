@@ -1,6 +1,6 @@
 # HimeBot 项目状态
 
-> 最近验证日期：2026-11-10
+> 最近验证日期：2026-11-12
 
 本文档用于在新对话中恢复 HimeBot 的开发上下文。先阅读 `AGENTS.md`，再阅读本文档。在更改布局、引用关系、模块职责、自动化流程或实现阶段之前，先阅读 `docs/project-structure.md`。
 
@@ -25,6 +25,8 @@ Windows 启动器现在使用 Shell 激活语义打开经过验证的 `.url`。�
 单帧截图链路已经从 WPF 经由异步 MVVM 命令连接到 `WindowsGameScreenshotCapture`，并能将 PNG 保存到 `%LocalAppData%/HimeBot/captures/`。`CopyFromScreen` 能够获得内容正确的客户区截图，但它读取屏幕最终合成像素，因此其他窗口遮挡游戏时，遮挡内容也会进入截图。随后验证的 Win32 `PrintWindow` 不会带入遮挡窗口，但对该游戏只返回黑屏，因此该实验已经回滚。
 
 Windows Graphics Capture 单帧客户区截图链路已经完成构建和人工运行验证：程序能够从窗口句柄创建 `GraphicsCaptureItem`，建立 Direct3D 11 设备、free-threaded frame pool 与捕获会话，取得第一帧并将 WinRT Surface 转换为原生 `ID3D11Texture2D`。帧通过 staging texture 映射到 CPU，按照 GPU `RowPitch` 逐行读取；随后使用 `ClientToScreen` 与 DWM 可见窗口边界动态计算客户区位置，并按 Bitmap `Stride` 写入 PNG。完整窗口阶段已确认其他窗口的遮挡不会进入 WGC 图片；最新人工运行确认客户区裁剪可以正常保存图片，并移除游戏标题栏和边框。
+
+已新增内部纯计算类 `ClientCropRectangleCalculator`，用于根据完整帧尺寸、客户区尺寸、客户区屏幕原点和 DWM 可见窗口原点计算裁剪矩形并校验越界。该类目前有意保留但尚未接入 `WindowsGameScreenshotCapture`；生产截图仍使用原有的 `TryGetClientCropRectangle` 实现，因此本次新增没有改变截图行为。等后续学习并引入测试后，再决定如何接入和调整该类。
 
 WGC、Direct3D/WinRT 互操作与裁剪的长期决定记录在 `docs/decisions/0001-use-windows-graphics-capture.md`，实现流程和本次错误排查记录在 `docs/guides/windows-graphics-capture.md`。
 
@@ -104,6 +106,7 @@ src/HimeBot.Core/
 src/HimeBot.Platform.Windows/
 ├─ Launching/WindowsGameLauncher.cs
 ├─ Native/NativeMethods.cs
+├─ ScreenCapture/ClientCropRectangleCalculator.cs
 ├─ ScreenCapture/Direct3D11CaptureDevice.cs
 ├─ ScreenCapture/Direct3D11SurfaceInterop.cs
 ├─ ScreenCapture/GameScreenshotCaptureResult.cs
@@ -159,7 +162,7 @@ HimeBot.App               -> bin/x64/Debug/net7.0-windows10.0.19041.0/HimeBot.Ap
 构建成功：0 个警告，0 个错误
 ```
 
-目前没有测试项目或测试用例，因此未运行自动化测试，也不声明任何测试结果。
+目前没有测试项目或测试用例，因此未运行自动化测试，也不声明任何测试结果。`ClientCropRectangleCalculator` 已随根解决方案完成 x64 Debug 构建验证，但尚未接入生产截图路径，也没有对应的自动化测试。
 
 窗口定位已经完成人工验证：游戏运行时能够识别主窗口并返回窗口标题与 `746 × 420` 客户区尺寸。针对同一运行窗口的诊断调用连续执行 10 次，结果保持一致。
 
@@ -175,8 +178,9 @@ HimeBot.App               -> bin/x64/Debug/net7.0-windows10.0.19041.0/HimeBot.Ap
 在不改变当前截图行为的前提下整理 `WindowsGameScreenshotCapture` 的职责：
 
 1. 将 frame pool/第一帧等待保留为捕获编排职责。
-2. 评估把 staging texture 回读、客户区矩形计算和 Bitmap 写入提取为内部辅助类，使纯计算部分可以进行确定性测试。
-3. 只有出现第二个截图适配器或确定性的测试适配器需求时，再决定是否把截图入口抽成 Core interface。
-4. 截图模块边界稳定后，继续阶段 0 的下一项技术验证：`SendInput` 是否能被游戏接受。
+2. 保留尚未接入的 `ClientCropRectangleCalculator`；等后续学习并引入测试时，再决定如何用它替换现有内联裁剪计算。
+3. staging texture 回读和 Bitmap 写入是否继续提取，留到出现明确的可读性或测试需求时再评估。
+4. 只有出现第二个截图适配器或确定性的测试适配器需求时，再决定是否把截图入口抽成 Core interface。
+5. 当前不继续为拆分而拆分；下一项阶段 0 技术验证是 `SendInput` 是否能被游戏接受。
 
 当前仍只承诺一次性客户区截图，不实现连续捕获、实时预览、最小化窗口捕获、OCR、鼠标输入或任务状态机。

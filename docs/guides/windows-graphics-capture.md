@@ -12,6 +12,8 @@
 
 当前尚未实现连续捕获、实时预览、窗口缩放过程中的重建、最小化窗口行为处理、OCR 或自动重试。
 
+仓库中已经保留 `ClientCropRectangleCalculator` 作为未来测试客户区裁剪规则的内部纯计算类，但它目前没有被生产截图路径调用。现有截图行为仍由 `WindowsGameScreenshotCapture.TryGetClientCropRectangle` 提供。
+
 ## 文件职责
 
 ```text
@@ -24,6 +26,7 @@ HimeBot.Platform.Windows
 ├─ Native/NativeMethods.cs                 # GetClientRect、ClientToScreen、DWM 边界
 └─ ScreenCapture/
    ├─ WindowsGameScreenshotCapture.cs      # 单帧编排、GPU 回读、裁剪与 PNG 保存
+   ├─ ClientCropRectangleCalculator.cs     # 未来测试用的纯裁剪计算；当前尚未接入
    ├─ GraphicsCaptureItemFactory.cs        # HWND -> GraphicsCaptureItem
    ├─ Direct3D11CaptureDevice.cs            # 原生 D3D11 与 WinRT 设备桥接/所有权
    ├─ Direct3D11SurfaceInterop.cs           # IDirect3DSurface -> ID3D11Texture2D
@@ -45,6 +48,8 @@ HimeBot.Platform.Windows
 9. 用客户区屏幕原点减去 DWM 可见窗口原点，得到客户区在完整 WGC 帧中的裁剪起点，并校验整个矩形没有越界。
 10. 创建客户区大小的 `Bitmap`，按 Bitmap 自己的 `Stride` 逐行写入裁剪像素，解锁后编码为 PNG。
 11. 所有 frame、frame pool、capture session、纹理、设备和进程对象按所有权确定性释放。
+
+第 9 步当前仍在 `WindowsGameScreenshotCapture.TryGetClientCropRectangle` 内执行。`ClientCropRectangleCalculator` 实现了同类纯计算规则，但在引入相应测试并重新评估接线方式之前，不参与上述生产执行流程。
 
 ## 为什么 WGC 尺寸比客户区大
 

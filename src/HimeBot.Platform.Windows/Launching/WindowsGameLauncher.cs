@@ -23,6 +23,9 @@ public sealed class WindowsGameLauncher : IGameLauncher
         {
             fullPath = Path.GetFullPath(launchTargetPath);
         }
+        //ArgumentException：路径参数异常
+        // NotSupportedException：路径格式不支持
+        // PathTooLongException：路径太长
         catch (Exception exception) when (
             exception is ArgumentException
             or NotSupportedException

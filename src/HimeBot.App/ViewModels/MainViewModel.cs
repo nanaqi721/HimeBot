@@ -54,6 +54,7 @@ public sealed class MainViewModel : ObservableObject
 
         private set
         {
+            // SetProperty：比较旧值与新值，若不同则更新，返回true
             if (SetProperty(
                     ref _selectedLaunchTargetPath,
                     value))
@@ -195,6 +196,7 @@ public sealed class MainViewModel : ObservableObject
     {
         _locatedGameWindow = window;
 
+        // 再次调用CanCaptureGameScreenshot方法，判断是否能点击按钮
         CaptureGameScreenshotCommand
             .NotifyCanExecuteChanged();
     }
@@ -221,6 +223,7 @@ public sealed class MainViewModel : ObservableObject
         string captureDirectory =
             Path.Combine(
                 Environment.GetFolderPath(
+                    // 用户LocalData目录
                     Environment.SpecialFolder.LocalApplicationData),
                 "HimeBot",
                 "captures");

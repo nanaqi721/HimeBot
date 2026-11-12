@@ -7,6 +7,10 @@ using System.Runtime.InteropServices;
 
 namespace HimeBot.Platform.Windows.Windowing;
 
+
+/// <summary>
+/// windows游戏窗口捕获器
+/// </summary>
 public sealed class WindowsGameWindowLocator
     : IGameWindowLocator
 {

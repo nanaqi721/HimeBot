@@ -34,6 +34,9 @@ public sealed class WindowsGameScreenshotCapture
                     "当前系统或图形设备不支持 Windows Graphics Capture。"));
         }
 
+        // Task.Run构造函数的Token管的是这个任务是否启动
+        // 如果在启动前被取消，任务不会执行
+        // 如果任务启动成功，不会中途停止
         return Task.Run(
             () => CaptureToPng(
                 window,

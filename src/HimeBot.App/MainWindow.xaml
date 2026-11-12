@@ -52,9 +52,19 @@
             Content="查找游戏窗口"
             Command="{Binding FindGameWindowCommand}" />
 
-            <Button Padding="16,6"
+            <Button Margin="0,0,8,0"
+            Padding="16,6"
             Content="保存客户区截图"
             Command="{Binding CaptureGameScreenshotCommand}" />
+
+            <Button Margin="0,0,8,0"
+            Padding="16,6"
+            Content="测试移动鼠标"
+            Command="{Binding TestMoveCursorCommand}" />
+
+            <Button Padding="16,6"
+            Content="测试鼠标点击"
+            Command="{Binding TestClickCursorCommand}" />
 
         </StackPanel>
 

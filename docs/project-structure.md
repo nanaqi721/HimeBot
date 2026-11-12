@@ -79,7 +79,7 @@ HimeBot/
 
 - `HimeBot.App`：WPF 程序入口、启动目标选择、启动命令、窗口查找命令和状态显示。
 - `HimeBot.Core`：游戏启动与窗口定位的结果模型和外部边界接口。
-- `HimeBot.Platform.Windows`：DMM Shell 启动、Windows 进程窗口定位、客户区尺寸读取和单帧截图。
+- `HimeBot.Platform.Windows`：DMM Shell 启动、Windows 进程窗口定位、客户区尺寸读取、单帧截图和 `SendInput` 鼠标输入。
 
 当前引用方向为：
 
@@ -101,6 +101,7 @@ HimeBot.Platform.Windows ──> HimeBot.Core
 | Shell 启动 adapter | `src/HimeBot.Platform.Windows/Launching/` | 已实现并人工验证 |
 | Windows 窗口定位与 Win32 客户区读取 | `src/HimeBot.Platform.Windows/Windowing/`、`src/HimeBot.Platform.Windows/Native/` | 已实现并人工验证 |
 | 单帧截图与 Windows Graphics Capture | `src/HimeBot.Platform.Windows/ScreenCapture/` | WGC 遮挡隔离与客户区动态裁剪均已人工运行验证 |
+| 客户区坐标鼠标移动 | `src/HimeBot.Platform.Windows/Input/` | `SendInput` 移动已实现并人工验证；点击尚未实现 |
 
 `ScreenCapture/ClientCropRectangleCalculator.cs` 是为后续学习测试保留的内部纯计算类。它目前尚未接入生产截图路径，不代表现有裁剪行为已经重构；`WindowsGameScreenshotCapture` 仍使用自身的 `TryGetClientCropRectangle` 完成 Win32 查询、坐标计算和越界校验。
 
@@ -259,7 +260,8 @@ HimeBot.Platform.Windows/
 │  ├─ Direct3D11SurfaceInterop.cs
 │  └─ GameScreenshotCaptureResult.cs
 ├─ Input/
-│  └─ SendInputAdapter.cs                 # 尚未实现
+│  ├─ GameInputResult.cs
+│  └─ SendInputAdapter.cs                 # 已验证客户区坐标鼠标移动
 ├─ Dpi/
 │  └─ CoordinateTransformer.cs            # 尚未实现
 └─ Native/
@@ -293,6 +295,8 @@ HWND
 WGC 选型、Direct3D/WinRT 桥接和客户区裁剪约束见 `docs/decisions/0001-use-windows-graphics-capture.md`；可复现的验证与排错步骤见 `docs/guides/windows-graphics-capture.md`。
 
 `ClientCropRectangleCalculator` 接受托管的 `Size` 与 `Point`，只负责裁剪起点、尺寸有效性和帧范围校验，不调用 Win32、WGC 或 Direct3D。当前保留它是为了以后引入测试时继续评估；在接入之前，生产数据流仍完全由 `WindowsGameScreenshotCapture` 执行。
+
+`SendInputAdapter` 目前暴露一个客户区像素坐标移动入口，内部隐藏窗口句柄重新取得、客户区校验、`ClientToScreen`、虚拟桌面坐标归一化与 Win32 `SendInput` 调用。WPF 通过 MVVM 命令手动触发该诊断操作。当前只验证了鼠标移动，尚未发送鼠标按下或抬起事件；也没有第二个 adapter，因此不新增 Core interface。
 
 ### 5.5 HimeBot.Vision
 

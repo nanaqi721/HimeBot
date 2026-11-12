@@ -4,6 +4,7 @@ using HimeBot.App.FilePicking;
 using HimeBot.Core.Launching;
 using HimeBot.Core.Ports;
 using HimeBot.Core.Windowing;
+using HimeBot.Platform.Windows.Input;
 using HimeBot.Platform.Windows.ScreenCapture;
 using System.IO;
 
@@ -15,6 +16,7 @@ public sealed class MainViewModel : ObservableObject
     private readonly IGameLauncher _gameLauncher;
     private readonly IGameWindowLocator _gameWindowLocator;
     private readonly WindowsGameScreenshotCapture _gameScreenshotCapture;
+    private readonly SendInputAdapter _sendInputAdapter;
 
     private string _selectedLaunchTargetPath = string.Empty;
     private string _statusMessage = "请选择 DMM 游戏快捷方式。";
@@ -24,14 +26,17 @@ public sealed class MainViewModel : ObservableObject
         IGameLaunchTargetPicker gameLaunchTargetPicker,
         IGameLauncher gameLauncher,
         IGameWindowLocator gameWindowLocator,
-        WindowsGameScreenshotCapture gameScreenshotCapture)
+        WindowsGameScreenshotCapture gameScreenshotCapture,
+         SendInputAdapter sendInputAdapter)
     {
         _gameLaunchTargetPicker = gameLaunchTargetPicker;
         _gameLauncher = gameLauncher;
         _gameWindowLocator = gameWindowLocator;
         _gameScreenshotCapture = gameScreenshotCapture;
+        _sendInputAdapter = sendInputAdapter;
 
-        SelectLaunchTargetCommand =
+
+    SelectLaunchTargetCommand =
             new RelayCommand(SelectLaunchTarget);
 
         LaunchGameCommand =
@@ -46,6 +51,16 @@ public sealed class MainViewModel : ObservableObject
             new AsyncRelayCommand(
                 CaptureGameScreenshotAsync,
                 CanCaptureGameScreenshot);
+
+        TestMoveCursorCommand =
+            new RelayCommand(
+                TestMoveCursor,
+                CanUseGameInput);
+
+        TestClickCursorCommand =
+            new RelayCommand(
+                TestClickCursor,
+                CanUseGameInput);
     }
 
     public string SelectedLaunchTargetPath
@@ -84,6 +99,9 @@ public sealed class MainViewModel : ObservableObject
         get;
     }
 
+    public IRelayCommand TestMoveCursorCommand { get; }
+
+    public IRelayCommand TestClickCursorCommand { get; }
     private void SelectLaunchTarget()
     {
         string? selectedPath =
@@ -199,6 +217,12 @@ public sealed class MainViewModel : ObservableObject
         // 再次调用CanCaptureGameScreenshot方法，判断是否能点击按钮
         CaptureGameScreenshotCommand
             .NotifyCanExecuteChanged();
+
+        TestMoveCursorCommand
+            .NotifyCanExecuteChanged();
+
+        TestClickCursorCommand
+            .NotifyCanExecuteChanged();
     }
 
     private bool CanCaptureGameScreenshot()
@@ -248,5 +272,68 @@ public sealed class MainViewModel : ObservableObject
             ? $"{result.Message} " +
               $"图片尺寸：{result.Width} × {result.Height}。"
             : result.Message;
+    }
+
+    private bool CanUseGameInput()
+    {
+        return _locatedGameWindow is not null;
+    }
+
+    private void TestMoveCursor()
+    {
+        GameWindowInfo? window =
+            _locatedGameWindow;
+
+        if (window is null)
+        {
+            StatusMessage =
+                "请先查找游戏窗口。";
+
+            return;
+        }
+
+        int clientX =
+            window.ClientWidth / 2;
+
+        int clientY =
+            window.ClientHeight / 2;
+
+        GameInputResult result =
+            _sendInputAdapter
+                .MoveCursorToClientPoint(
+                    window,
+                    clientX,
+                    clientY);
+
+        StatusMessage = result.Message;
+    }
+
+    private void TestClickCursor()
+    {
+        GameWindowInfo? window =
+            _locatedGameWindow;
+
+        if (window is null)
+        {
+            StatusMessage =
+                "请先查找游戏窗口。";
+
+            return;
+        }
+
+        int clientX =
+            window.ClientWidth / 2;
+
+        int clientY =
+            window.ClientHeight / 2;
+
+        GameInputResult result =
+            _sendInputAdapter
+                .ClickClientPoint(
+                    window,
+                    clientX,
+                    clientY);
+
+        StatusMessage = result.Message;
     }
 }

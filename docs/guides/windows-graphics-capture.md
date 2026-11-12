@@ -12,6 +12,8 @@
 
 当前尚未实现连续捕获、实时预览、窗口缩放过程中的重建、最小化窗口行为处理、OCR 或自动重试。
 
+“遮挡时仍可截图”只表示 WGC 不会把遮挡窗口的像素写入游戏截图，不代表 WGC 能强制游戏继续渲染。如果游戏因完全遮挡而停止提交新帧，WGC 可能仍返回有效但内容不再变化的窗口表面。
+
 仓库中已经保留 `ClientCropRectangleCalculator` 作为未来测试客户区裁剪规则的内部纯计算类，但它目前没有被生产截图路径调用。现有截图行为仍由 `WindowsGameScreenshotCapture.TryGetClientCropRectangle` 提供。
 
 ## 文件职责
@@ -66,6 +68,26 @@ cropHeight = GetClientRect 高度
 
 这样可以适应主题、窗口边框和 DPI 造成的非客户区尺寸变化。若窗口在“取得坐标”和“取得帧”之间发生缩放，越界校验会返回失败，而不是保存错位图片。
 
+## 完全遮挡时的画面停更
+
+人工对比已观察到：Chrome 只遮挡游戏一部分时，游戏画面继续更新；Chrome 扩大至完全覆盖游戏后，游戏停止更新渲染画面，此时多次 WGC 截图内容相同；移开 Chrome 后游戏继续更新。
+
+该现象符合 DXGI 对“输出窗口被完全遮挡”的处理模型：渲染应用可以在收到 `DXGI_STATUS_OCCLUDED` 后进入待机，直到窗口恢复可见。详见 [Microsoft DXGI overview](https://learn.microsoft.com/en-us/windows/win32/direct3ddxgi/d3d10-graphics-programming-guide-dxgi)。这是对当前观察的原因推断；HimeBot 没有访问游戏内部渲染循环，因此不把具体 DirectX 实现当作已确认事实。
+
+待验证的候选方案是在自动化期间使游戏窗口保持置顶：
+
+```text
+SetWindowPos(
+    gameWindow,
+    HWND_TOPMOST,
+    0, 0, 0, 0,
+    SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE)
+```
+
+`HWND_TOPMOST` 使游戏保持在普通非置顶窗口上方；三个 `SWP` 标志分别保留当前位置、尺寸并避免激活游戏。停止自动化时应以 `HWND_NOTOPMOST` 恢复普通 Z-order。详见 [SetWindowPos](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setwindowpos)。
+
+该方案尚未实现和验证。它不处理最小化、其他置顶窗口、锁屏或安全桌面，也不代表游戏获得键盘焦点。若后续实现，Win32 细节应放在 `HimeBot.Platform.Windows/Windowing/`，不放入 WPF code-behind，也不与只负责查找窗口的 `WindowsGameWindowLocator` 混合。
+
 ## 已遇到的错误与结论
 
 | 现象 | 原因 | 当前处理 |
@@ -78,6 +100,7 @@ cropHeight = GetClientRect 高度
 | `CreateFreeThreaded` 中出现 `InvalidCastException`、`0x80004002` | 传入 frame pool 的仍是上一条中的不兼容 COM 包装对象 | 使用同一原生桥接修复；不要恢复已注释的泛型转换实现 |
 | GPU 帧无法直接供 CPU 稳定读取 | 默认 WGC 纹理不是 CPU-readable staging resource | 复制到 staging texture 后再 `Map` |
 | 图片可能错行或倾斜 | GPU `RowPitch` 和 Bitmap `Stride` 都可能大于紧凑行字节数 | 源与目标分别按各自跨度逐行复制 |
+| 游戏被 Chrome 完全遮挡后，WGC 仍能保存但多张图片内容相同 | 目标游戏在完全遮挡时停止更新渲染表面；WGC 不能强制它提交新帧 | 已记录 `HWND_TOPMOST` 候选方案，尚未实现或人工验证 |
 
 COM 裸指针的规则是：创建函数返回的指针在完成 `FromAbi` 投影后由调用方 `Marshal.Release` 一次；投影出来的 WinRT 对象和原生 Vortice 对象再按各自所有权 `Dispose`。不要把 COM 对象强制转换成 `IDisposable` 来猜测其生命周期。
 

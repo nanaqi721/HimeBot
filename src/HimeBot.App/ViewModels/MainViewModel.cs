@@ -6,6 +6,7 @@ using HimeBot.Core.Ports;
 using HimeBot.Core.Windowing;
 using HimeBot.Platform.Windows.Input;
 using HimeBot.Platform.Windows.ScreenCapture;
+using HimeBot.Platform.Windows.Windowing;
 using System.IO;
 
 namespace HimeBot.App.ViewModels;
@@ -17,6 +18,7 @@ public sealed class MainViewModel : ObservableObject
     private readonly IGameWindowLocator _gameWindowLocator;
     private readonly WindowsGameScreenshotCapture _gameScreenshotCapture;
     private readonly SendInputAdapter _sendInputAdapter;
+    private readonly WindowsGameWindowController _gameWindowController;
 
     private string _selectedLaunchTargetPath = string.Empty;
     private string _statusMessage = "请选择 DMM 游戏快捷方式。";
@@ -27,16 +29,17 @@ public sealed class MainViewModel : ObservableObject
         IGameLauncher gameLauncher,
         IGameWindowLocator gameWindowLocator,
         WindowsGameScreenshotCapture gameScreenshotCapture,
-         SendInputAdapter sendInputAdapter)
+        SendInputAdapter sendInputAdapter,
+        WindowsGameWindowController gameWindowController)
     {
         _gameLaunchTargetPicker = gameLaunchTargetPicker;
         _gameLauncher = gameLauncher;
         _gameWindowLocator = gameWindowLocator;
         _gameScreenshotCapture = gameScreenshotCapture;
         _sendInputAdapter = sendInputAdapter;
+        _gameWindowController = gameWindowController;
 
-
-    SelectLaunchTargetCommand =
+        SelectLaunchTargetCommand =
             new RelayCommand(SelectLaunchTarget);
 
         LaunchGameCommand =
@@ -61,6 +64,16 @@ public sealed class MainViewModel : ObservableObject
             new RelayCommand(
                 TestClickCursor,
                 CanUseGameInput);
+
+        SetGameWindowTopmostCommand =
+            new RelayCommand(
+                SetGameWindowTopmost,
+                CanControlGameWindow);
+
+        RemoveGameWindowTopmostCommand =
+            new RelayCommand(
+                RemoveGameWindowTopmost,
+                CanControlGameWindow);
     }
 
     public string SelectedLaunchTargetPath
@@ -102,6 +115,11 @@ public sealed class MainViewModel : ObservableObject
     public IRelayCommand TestMoveCursorCommand { get; }
 
     public IRelayCommand TestClickCursorCommand { get; }
+
+    public IRelayCommand SetGameWindowTopmostCommand { get; }
+
+    public IRelayCommand RemoveGameWindowTopmostCommand { get; }
+
     private void SelectLaunchTarget()
     {
         string? selectedPath =
@@ -223,6 +241,12 @@ public sealed class MainViewModel : ObservableObject
 
         TestClickCursorCommand
             .NotifyCanExecuteChanged();
+
+        SetGameWindowTopmostCommand
+            .NotifyCanExecuteChanged();
+
+        RemoveGameWindowTopmostCommand
+            .NotifyCanExecuteChanged();
     }
 
     private bool CanCaptureGameScreenshot()
@@ -333,6 +357,43 @@ public sealed class MainViewModel : ObservableObject
                     window,
                     clientX,
                     clientY);
+
+        StatusMessage = result.Message;
+    }
+
+    private bool CanControlGameWindow()
+    {
+        return _locatedGameWindow is not null;
+    }
+
+    private void SetGameWindowTopmost()
+    {
+        ChangeGameWindowTopmost(true);
+    }
+
+    private void RemoveGameWindowTopmost()
+    {
+        ChangeGameWindowTopmost(false);
+    }
+
+    private void ChangeGameWindowTopmost(
+        bool isTopmost)
+    {
+        GameWindowInfo? window =
+            _locatedGameWindow;
+
+        if (window is null)
+        {
+            StatusMessage =
+                "请先查找游戏窗口。";
+
+            return;
+        }
+
+        GameWindowControlResult result =
+            _gameWindowController.SetTopmost(
+                window,
+                isTopmost);
 
         StatusMessage = result.Message;
     }

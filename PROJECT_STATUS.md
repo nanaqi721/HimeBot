@@ -1,6 +1,6 @@
 # HimeBot 项目状态
 
-> 最近验证日期：2026-11-12
+> 最近验证日期：2026-11-13
 
 本文档用于在新对话中恢复 HimeBot 的开发上下文。先阅读 `AGENTS.md`，再阅读本文档。在更改布局、引用关系、模块职责、自动化流程或实现阶段之前，先阅读 `docs/project-structure.md`。
 
@@ -30,7 +30,9 @@ Windows Graphics Capture 单帧客户区截图链路已经完成构建和人工�
 
 已新增内部纯计算类 `ClientCropRectangleCalculator`，用于根据完整帧尺寸、客户区尺寸、客户区屏幕原点和 DWM 可见窗口原点计算裁剪矩形并校验越界。该类目前有意保留但尚未接入 `WindowsGameScreenshotCapture`；生产截图仍使用原有的 `TryGetClientCropRectangle` 实现，因此本次新增没有改变截图行为。等后续学习并引入测试后，再决定如何接入和调整该类。
 
-Windows 鼠标输入技术验证已完成第一步：`SendInputAdapter` 能够根据已定位的游戏窗口，将客户区像素坐标经 `ClientToScreen` 转为屏幕坐标，再按虚拟桌面归一化后通过 Win32 `SendInput` 提交绝对鼠标移动。WPF 已经由 MVVM 命令调用该 adapter。人工运行已确认光标可以正确移动到游戏客户区中心。`ClickClientPoint` 已经组合鼠标移动、左键按下和左键抬起事件并通过构建，但尚未接入 WPF 命令，也尚未进行游戏内人工验证。
+Windows 鼠标输入技术验证已经完成：`SendInputAdapter` 能够根据已定位的游戏窗口，将客户区像素坐标经 `ClientToScreen` 转为屏幕坐标，再按虚拟桌面归一化后通过 Win32 `SendInput` 提交绝对鼠标移动。`ClickClientPoint` 在移动成功后继续提交左键按下和左键抬起事件，WPF 通过两个 MVVM 命令分别触发移动与点击。人工运行已确认光标可以正确移动到游戏客户区中心，并且游戏会对测试点击产生实际响应。
+
+窗口层级控制已经完成构建和人工运行验证：`WindowsGameWindowController` 根据已定位窗口的进程 ID 重新取得当前主窗口句柄，并通过 `SetWindowPos` 在 `HWND_TOPMOST` 与 `HWND_NOTOPMOST` 之间切换，同时使用 `SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE` 保持位置、尺寸和焦点不变。WPF 已经通过两个 MVVM 命令提供设置和取消置顶按钮；人工运行确认普通窗口无法覆盖置顶后的游戏，取消置顶后游戏恢复普通 Z-order。
 
 WGC、Direct3D/WinRT 互操作与裁剪的长期决定记录在 `docs/decisions/0001-use-windows-graphics-capture.md`，实现流程和本次错误排查记录在 `docs/guides/windows-graphics-capture.md`。
 
@@ -58,6 +60,8 @@ WGC、Direct3D/WinRT 互操作与裁剪的长期决定记录在 `docs/decisions/
 18. 完成 staging texture、GPU 到 CPU 映射、按 `RowPitch` 复制和 PNG 编码；人工验证完整窗口截图不会包含其他窗口的遮挡内容。
 19. 接入基于 DWM 可见窗口边界的客户区动态裁剪；已通过 x64 构建和人工运行验证，最终图片不再包含游戏标题栏与边框。
 20. 新增 `GameInputResult`、`SendInputAdapter` 与所需的 Win32 输入结构，通过组合根、`MainViewModel` 命令和 WPF 按钮接入“测试移动鼠标”；已人工确认光标能正确移动到游戏客户区中心。
+21. 在 `SendInputAdapter` 中组合客户区坐标移动、左键按下和左键抬起，通过 `MainViewModel` 与“测试鼠标点击”按钮接入；已通过 x64 构建，并人工确认游戏会响应点击。
+22. 新增 `GameWindowControlResult`、`WindowsGameWindowController` 与原生 `SetWindowPos` 声明，并通过组合根、`MainViewModel` 命令和 WPF 按钮接入设置与取消置顶；已通过 x64 构建和人工运行验证。
 
 本阶段已经完成的人工观察：
 
@@ -65,7 +69,9 @@ WGC、Direct3D/WinRT 互操作与裁剪的长期决定记录在 `docs/decisions/
 - 在 HimeBot 之外双击 DMM 创建的桌面快捷方式，可以打开 DMM GAMES PLAYER 并启动游戏。
 - 通过当前 HimeBot `.url` 流程可以启动 DMM，并使 `koisen.exe` 正常启动和保持运行。
 - 通过“测试移动鼠标”命令，光标可以从 HimeBot 按钮移动到游戏客户区中心。
+- 通过“测试鼠标点击”命令，游戏会对客户区中心的左键点击产生实际响应。
 - Chrome 逐步扩大至完全遮挡游戏时，游戏渲染画面停止更新；WGC 保存的图片仍然有效，但内容重复；移开 Chrome 后画面恢复更新。
+- 设置游戏置顶后，普通窗口无法覆盖游戏；取消置顶后，游戏恢复普通窗口层级。
 
 ## 当前仓库结构
 
@@ -122,7 +128,10 @@ src/HimeBot.Platform.Windows/
 ├─ ScreenCapture/GameScreenshotCaptureResult.cs
 ├─ ScreenCapture/GraphicsCaptureItemFactory.cs
 ├─ ScreenCapture/WindowsGameScreenshotCapture.cs
-└─ Windowing/WindowsGameWindowLocator.cs
+└─ Windowing/
+   ├─ GameWindowControlResult.cs
+   ├─ WindowsGameWindowController.cs
+   └─ WindowsGameWindowLocator.cs
 ```
 
 ## 已验证的项目引用
@@ -178,21 +187,22 @@ HimeBot.App               -> bin/x64/Debug/net7.0-windows10.0.19041.0/HimeBot.Ap
 
 截图实验已经人工验证：`CopyFromScreen` 在无遮挡时能够保存正确画面，但会带入遮挡内容；`PrintWindow` 对游戏返回黑屏。Windows Graphics Capture 能够保存内容正确的窗口 PNG，并且其他窗口遮挡游戏时不会把遮挡内容写入图片。客户区动态裁剪也已完成人工运行验证，最终 PNG 可以正常保存且不再包含标题栏和边框。
 
-`SendInput` 鼠标移动已完成构建和人工运行验证：按钮命令能将游戏客户区中心坐标交给 `SendInputAdapter`，光标的实际落点正确。左键按下和抬起事件的底层方法已通过构建，但还没有界面入口，也不能据此断言游戏已经接受点击。
+`SendInput` 鼠标移动与左键点击均已完成构建和人工运行验证：两个按钮命令能将游戏客户区中心坐标交给 `SendInputAdapter`，光标的实际落点正确，游戏也会对点击产生响应。
+
+`SetWindowPos` 窗口层级控制已完成构建和人工运行验证：设置置顶后普通窗口无法覆盖游戏，取消置顶后恢复普通 Z-order。该结果不改变最小化、其他置顶窗口、锁屏或安全桌面的既有限制。
 
 ## 未解决的决定
 
 - 后续的成功检测机制尚未决定。可能的信号包括检测游戏进程或游戏窗口；当前启动器有意只报告 Shell 已接受请求。
 - 尚未决定 HimeBot 应该继续要求用户选择 DMM 快捷方式、记住上一次选择，还是自动发现该快捷方式。
-- 待验证的遮挡处理方案是：自动化期间用 `SetWindowPos(HWND_TOPMOST)` 使游戏保持在普通非置顶窗口上方，并同时使用 `SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE` 避免改变尺寸、位置和焦点；停止自动化时用 `HWND_NOTOPMOST` 恢复。该方案尚未实现或人工验证，且不保证胜过其他置顶窗口、最小化状态或安全桌面。
 
 ## 下一步目标
 
-继续阶段 0 的 `SendInput` 技术验证：
+继续阶段 0 的视觉识别准备：
 
-1. 在 `MainViewModel` 中增加测试点击命令，由它调用现有的 `ClickClientPoint`。
-2. 在 WPF 中增加手动触发按钮；构建成功后，由用户在游戏中选择一个无破坏性、可观察的点击目标。
-3. 以游戏界面是否产生可见反应作为“游戏接受输入”的人工判定；`SendInput` 返回的插入数量只代表 Windows 已接受事件。
-4. 目前仍只有一个真实输入 adapter，不新增 Core interface，也不引入 xUnit。
+1. 在游戏的稳定场景保存一张客户区截图，优先选择首页或其他容易重复进入的画面。
+2. 从截图中选择一个边界清晰、结果容易人工判断的文字或数字区域，记录其客户区像素矩形。
+3. 先用这个真实区域定义第一项识别实验，再决定支持 `.NET 7` 的 OCR adapter 和是否首次创建 `HimeBot.Vision`。
+4. 当前不提前创建通用 OCR interface、任务状态机或 xUnit 项目。
 
-当前仍只承诺一次性客户区截图和手动触发的单次鼠标诊断，不实现连续捕获、实时预览、最小化窗口捕获、OCR、自动点击流程或任务状态机。
+当前仍只承诺一次性客户区截图、手动输入诊断和手动窗口层级控制，不实现连续捕获、实时预览、最小化窗口捕获、OCR、自动点击流程或任务状态机。

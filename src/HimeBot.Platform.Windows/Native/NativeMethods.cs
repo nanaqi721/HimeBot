@@ -63,6 +63,13 @@ internal static class NativeMethods
     internal const int SmCxVirtualScreen = 78;
     internal const int SmCyVirtualScreen = 79;
 
+    internal static readonly IntPtr HwndTopmost = new IntPtr(-1);
+    internal static readonly IntPtr HwndNotTopmost = new IntPtr(-2);
+
+    internal const uint SwpNoSize = 0x0001;
+    internal const uint SwpNoMove = 0x0002;
+    internal const uint SwpNoActivate = 0x0010;
+
     [DllImport(
         "user32.dll",
         SetLastError = true)]
@@ -102,4 +109,17 @@ internal static class NativeMethods
     [DllImport("user32.dll")]
     internal static extern int GetSystemMetrics(
     int index);
+
+    [DllImport(
+    "user32.dll",
+    SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool SetWindowPos(
+    IntPtr windowHandle,
+    IntPtr insertAfter,
+    int x,
+    int y,
+    int width,
+    int height,
+    uint flags);
 }

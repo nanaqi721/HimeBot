@@ -6,11 +6,12 @@
         xmlns:local="clr-namespace:HimeBot.App"
         mc:Ignorable="d"
         Title="HimeBot" 
-        Height="280" 
+        Height="330" 
         Width="640">
 
     <Grid Margin="24">
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
@@ -68,7 +69,23 @@
 
         </StackPanel>
 
-        <TextBlock Grid.Row="3"
+        <StackPanel Grid.Row="3"
+            Margin="0,8,0,0"
+            HorizontalAlignment="Right"
+            Orientation="Horizontal">
+
+            <Button Margin="0,0,8,0"
+            Padding="16,6"
+            Content="设置游戏置顶"
+            Command="{Binding SetGameWindowTopmostCommand}" />
+
+            <Button Padding="16,6"
+            Content="取消游戏置顶"
+            Command="{Binding RemoveGameWindowTopmostCommand}" />
+
+        </StackPanel>
+
+        <TextBlock Grid.Row="4"
                    Margin="0,16,0,0"
                    Text="{Binding StatusMessage}"
                    TextWrapping="Wrap" />

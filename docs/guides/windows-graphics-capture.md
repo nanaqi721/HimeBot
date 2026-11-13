@@ -74,7 +74,7 @@ cropHeight = GetClientRect 高度
 
 该现象符合 DXGI 对“输出窗口被完全遮挡”的处理模型：渲染应用可以在收到 `DXGI_STATUS_OCCLUDED` 后进入待机，直到窗口恢复可见。详见 [Microsoft DXGI overview](https://learn.microsoft.com/en-us/windows/win32/direct3ddxgi/d3d10-graphics-programming-guide-dxgi)。这是对当前观察的原因推断；HimeBot 没有访问游戏内部渲染循环，因此不把具体 DirectX 实现当作已确认事实。
 
-待验证的候选方案是在自动化期间使游戏窗口保持置顶：
+当前已经实现的处理方式是在需要保持画面更新时使游戏窗口置顶：
 
 ```text
 SetWindowPos(
@@ -86,7 +86,7 @@ SetWindowPos(
 
 `HWND_TOPMOST` 使游戏保持在普通非置顶窗口上方；三个 `SWP` 标志分别保留当前位置、尺寸并避免激活游戏。停止自动化时应以 `HWND_NOTOPMOST` 恢复普通 Z-order。详见 [SetWindowPos](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setwindowpos)。
 
-该方案尚未实现和验证。它不处理最小化、其他置顶窗口、锁屏或安全桌面，也不代表游戏获得键盘焦点。若后续实现，Win32 细节应放在 `HimeBot.Platform.Windows/Windowing/`，不放入 WPF code-behind，也不与只负责查找窗口的 `WindowsGameWindowLocator` 混合。
+该方案已经通过 `WindowsGameWindowController` 实现，并由 WPF 的设置与取消置顶按钮完成人工验证：普通窗口无法覆盖置顶后的游戏，取消置顶后恢复普通 Z-order。Win32 细节位于 `HimeBot.Platform.Windows/Windowing/`，没有放入 WPF code-behind，也没有与只负责查找窗口的 `WindowsGameWindowLocator` 混合。它仍不处理最小化、其他置顶窗口、锁屏或安全桌面，也不代表游戏获得键盘焦点。
 
 ## 已遇到的错误与结论
 
@@ -100,7 +100,7 @@ SetWindowPos(
 | `CreateFreeThreaded` 中出现 `InvalidCastException`、`0x80004002` | 传入 frame pool 的仍是上一条中的不兼容 COM 包装对象 | 使用同一原生桥接修复；不要恢复已注释的泛型转换实现 |
 | GPU 帧无法直接供 CPU 稳定读取 | 默认 WGC 纹理不是 CPU-readable staging resource | 复制到 staging texture 后再 `Map` |
 | 图片可能错行或倾斜 | GPU `RowPitch` 和 Bitmap `Stride` 都可能大于紧凑行字节数 | 源与目标分别按各自跨度逐行复制 |
-| 游戏被 Chrome 完全遮挡后，WGC 仍能保存但多张图片内容相同 | 目标游戏在完全遮挡时停止更新渲染表面；WGC 不能强制它提交新帧 | 已记录 `HWND_TOPMOST` 候选方案，尚未实现或人工验证 |
+| 游戏被 Chrome 完全遮挡后，WGC 仍能保存但多张图片内容相同 | 目标游戏在完全遮挡时停止更新渲染表面；WGC 不能强制它提交新帧 | 自动化期间可通过已验证的窗口置顶控制避免被普通窗口完全覆盖，结束后取消置顶 |
 
 COM 裸指针的规则是：创建函数返回的指针在完成 `FromAbi` 投影后由调用方 `Marshal.Release` 一次；投影出来的 WinRT 对象和原生 Vortice 对象再按各自所有权 `Dispose`。不要把 COM 对象强制转换成 `IDisposable` 来猜测其生命周期。
 

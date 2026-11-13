@@ -28,12 +28,15 @@ public partial class App : Application
 
         var sendInputAdapter = new SendInputAdapter();
 
+        var gameWindowController = new WindowsGameWindowController();
+
         var mainViewModel = new MainViewModel(
             gameLaunchTargetPicker,
             gameLauncher,
             gameWindowLocator,
             gameScreenShotCapture,
-            sendInputAdapter);
+            sendInputAdapter,
+            gameWindowController);
         var mainWindow = new MainWindow
         {
             DataContext = mainViewModel

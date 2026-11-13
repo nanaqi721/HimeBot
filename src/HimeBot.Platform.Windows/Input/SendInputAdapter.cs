@@ -150,8 +150,11 @@ public sealed class SendInputAdapter
                         Y = normalizedY,
                         MouseData = 0,
                         Flags =
+                            // 鼠标移动
                             NativeMethods.MouseEventMove |
+                            // 表示 X、Y 是绝对位置，不是从当前位置移动多少距离
                             NativeMethods.MouseEventAbsolute |
+                            // 表示绝对坐标以整个多显示器虚拟桌面为范围，不是只以主显示器为范围。
                             NativeMethods.MouseEventVirtualDesk,
                         Time = 0,
                         ExtraInfo = UIntPtr.Zero

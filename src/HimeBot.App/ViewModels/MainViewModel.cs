@@ -22,6 +22,8 @@ public sealed class MainViewModel : ObservableObject
 
     private string _selectedLaunchTargetPath = string.Empty;
     private string _statusMessage = "请选择 DMM 游戏快捷方式。";
+    private string _targetClientWidthText = "1280";
+    private string _targetClientHeightText = "720";
     private GameWindowInfo? _locatedGameWindow;
 
     public MainViewModel(
@@ -74,6 +76,11 @@ public sealed class MainViewModel : ObservableObject
             new RelayCommand(
                 RemoveGameWindowTopmost,
                 CanControlGameWindow);
+
+        SetGameWindowClientSizeCommand =
+            new RelayCommand(
+                SetGameWindowClientSize,
+                CanControlGameWindow);
     }
 
     public string SelectedLaunchTargetPath
@@ -101,6 +108,24 @@ public sealed class MainViewModel : ObservableObject
             value);
     }
 
+    public string TargetClientWidthText
+    {
+        get => _targetClientWidthText;
+
+        set => SetProperty(
+            ref _targetClientWidthText,
+            value);
+    }
+
+    public string TargetClientHeightText
+    {
+        get => _targetClientHeightText;
+
+        set => SetProperty(
+            ref _targetClientHeightText,
+            value);
+    }
+
     public IRelayCommand SelectLaunchTargetCommand { get; }
 
     public IRelayCommand LaunchGameCommand { get; }
@@ -119,6 +144,9 @@ public sealed class MainViewModel : ObservableObject
     public IRelayCommand SetGameWindowTopmostCommand { get; }
 
     public IRelayCommand RemoveGameWindowTopmostCommand { get; }
+
+    public IRelayCommand SetGameWindowClientSizeCommand { get; }
+
 
     private void SelectLaunchTarget()
     {
@@ -246,6 +274,9 @@ public sealed class MainViewModel : ObservableObject
             .NotifyCanExecuteChanged();
 
         RemoveGameWindowTopmostCommand
+            .NotifyCanExecuteChanged();
+
+        SetGameWindowClientSizeCommand
             .NotifyCanExecuteChanged();
     }
 
@@ -396,5 +427,75 @@ public sealed class MainViewModel : ObservableObject
                 isTopmost);
 
         StatusMessage = result.Message;
+    }
+
+    private void SetGameWindowClientSize()
+    {
+        GameWindowInfo? window =
+            _locatedGameWindow;
+
+        if (window is null)
+        {
+            StatusMessage =
+                "请先查找游戏窗口。";
+
+            return;
+        }
+
+        if (!int.TryParse(
+                TargetClientWidthText,
+                out int clientWidth))
+        {
+            StatusMessage =
+                "客户区宽度必须是整数。";
+
+            return;
+        }
+
+        if (!int.TryParse(
+                TargetClientHeightText,
+                out int clientHeight))
+        {
+            StatusMessage =
+                "客户区高度必须是整数。";
+
+            return;
+        }
+
+        GameWindowControlResult controlResult =
+            _gameWindowController.SetClientSize(
+                window,
+                clientWidth,
+                clientHeight);
+
+        if (!controlResult.IsSuccess)
+        {
+            StatusMessage = controlResult.Message;
+            return;
+        }
+
+        GameWindowLookupResult refreshResult =
+            _gameWindowLocator.FindByProcessName(
+                "koisen");
+
+        if (!refreshResult.IsSuccess ||
+            refreshResult.Window is null)
+        {
+            SetLocatedGameWindow(null);
+
+            StatusMessage =
+                $"{controlResult.Message} " +
+                $"但刷新窗口信息失败：" +
+                $"{refreshResult.Message}";
+
+            return;
+        }
+
+        SetLocatedGameWindow(
+            refreshResult.Window);
+
+        StatusMessage =
+            $"{controlResult.Message} " +
+            $"窗口信息已刷新。";
     }
 }

@@ -6,11 +6,12 @@
         xmlns:local="clr-namespace:HimeBot.App"
         mc:Ignorable="d"
         Title="HimeBot" 
-        Height="330" 
+        Height="380" 
         Width="640">
 
     <Grid Margin="24">
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
@@ -85,7 +86,38 @@
 
         </StackPanel>
 
-        <TextBlock Grid.Row="4"
+        <StackPanel Grid.Row="4"
+            Margin="0,12,0,0"
+            HorizontalAlignment="Right"
+            Orientation="Horizontal">
+
+            <TextBlock Margin="0,0,8,0"
+               VerticalAlignment="Center"
+               Text="客户区大小" />
+
+            <TextBox Width="72"
+             Margin="0,0,8,0"
+             MaxLength="4"
+             Text="{Binding TargetClientWidthText,
+                            UpdateSourceTrigger=PropertyChanged}" />
+
+            <TextBlock Margin="0,0,8,0"
+               VerticalAlignment="Center"
+               Text="×" />
+
+            <TextBox Width="72"
+             Margin="0,0,8,0"
+             MaxLength="4"
+             Text="{Binding TargetClientHeightText,
+                            UpdateSourceTrigger=PropertyChanged}" />
+
+            <Button Padding="16,6"
+            Content="设置标准客户区大小"
+            Command="{Binding SetGameWindowClientSizeCommand}" />
+
+        </StackPanel>
+
+        <TextBlock Grid.Row="5"
                    Margin="0,16,0,0"
                    Text="{Binding StatusMessage}"
                    TextWrapping="Wrap" />

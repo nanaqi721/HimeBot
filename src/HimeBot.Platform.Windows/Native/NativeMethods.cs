@@ -69,6 +69,7 @@ internal static class NativeMethods
     internal const uint SwpNoSize = 0x0001;
     internal const uint SwpNoMove = 0x0002;
     internal const uint SwpNoActivate = 0x0010;
+    internal const uint SwpNoZOrder = 0x0004;
 
     [DllImport(
         "user32.dll",
@@ -86,6 +87,14 @@ internal static class NativeMethods
     internal static extern bool ClientToScreen(
         IntPtr windowHandle,
         ref NativePoint point);
+
+    [DllImport(
+    "user32.dll",
+    SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool GetWindowRect(
+    IntPtr windowHandle,
+    out NativeRect windowRectangle);
 
     [DllImport(
         "dwmapi.dll",

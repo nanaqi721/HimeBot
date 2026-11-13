@@ -18,6 +18,8 @@ internal struct NativePoint
     public int Y;
 }
 
+
+// 把下面的字段按照声明顺序排列到内存中。
 [StructLayout(LayoutKind.Sequential)]
 internal struct NativeMouseInput
 {
@@ -29,6 +31,8 @@ internal struct NativeMouseInput
     public UIntPtr ExtraInfo;
 }
 
+// 不要由 .NET 自动排列字段，
+// 每个字段放在什么内存位置，由 [FieldOffset] 明确指定
 [StructLayout(LayoutKind.Explicit)]
 internal struct NativeInputUnion
 {
@@ -67,6 +71,7 @@ internal static class NativeMethods
         IntPtr windowHandle,
         out NativeRect clientRectangle);
 
+    //把“相对于某个窗口客户区的坐标”，转换成“整个屏幕上的坐标”。
     [DllImport(
         "user32.dll",
         SetLastError = true)]
@@ -89,6 +94,8 @@ internal static class NativeMethods
     SetLastError = true)]
     internal static extern uint SendInput(
     uint inputCount,
+    // 这个数组的数据是从 C# 传给原生函数的输入数据，原生函数不需要把修改后的内容传回 C#。
+    // 我传给你数据，你别修改也别返回
     [In] NativeInput[] inputs,
     int inputSize);
 

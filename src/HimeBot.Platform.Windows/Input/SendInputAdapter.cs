@@ -82,6 +82,7 @@ public sealed class SendInputAdapter
                     "转换客户区坐标失败");
             }
 
+            // 获取虚拟桌面最左最上，长度宽度
             int virtualLeft =
                 NativeMethods.GetSystemMetrics(
                     NativeMethods.SmXVirtualScreen);
@@ -106,6 +107,10 @@ public sealed class SendInputAdapter
                     "无法取得有效的虚拟桌面尺寸。");
             }
 
+            // 计算该点相对于整个虚拟屏幕的位置
+            // 单显示器时，虚拟桌面通常就是该显示器；
+            // 多显示器时，虚拟桌面是包住所有显示器的整体矩形，
+            // 其起点和大小会随分辨率、相对位置及排列方式变化。
             long relativeX =
                 (long)screenPoint.X - virtualLeft;
 
@@ -123,6 +128,7 @@ public sealed class SendInputAdapter
                     $"({screenPoint.X}, {screenPoint.Y})。");
             }
 
+            // 对坐标进行归一化
             int normalizedX =
                 (int)(
                     relativeX * 65535 /

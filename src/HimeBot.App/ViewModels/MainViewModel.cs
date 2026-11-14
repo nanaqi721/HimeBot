@@ -7,6 +7,7 @@ using HimeBot.Core.Windowing;
 using HimeBot.Platform.Windows.Input;
 using HimeBot.Platform.Windows.ScreenCapture;
 using HimeBot.Platform.Windows.Windowing;
+using HimeBot.Vision.ImageProcessing;
 using System.IO;
 
 namespace HimeBot.App.ViewModels;
@@ -19,11 +20,12 @@ public sealed class MainViewModel : ObservableObject
     private readonly WindowsGameScreenshotCapture _gameScreenshotCapture;
     private readonly SendInputAdapter _sendInputAdapter;
     private readonly WindowsGameWindowController _gameWindowController;
+    private readonly ImagePreprocessor _imagePreprocessor;
 
     private string _selectedLaunchTargetPath = string.Empty;
     private string _statusMessage = "请选择 DMM 游戏快捷方式。";
-    private string _targetClientWidthText = "1280";
-    private string _targetClientHeightText = "720";
+    private string? _latestCapturePath;
+    private ClientSizeOption? _selectedClientSizeOption;
     private GameWindowInfo? _locatedGameWindow;
 
     public MainViewModel(
@@ -32,7 +34,8 @@ public sealed class MainViewModel : ObservableObject
         IGameWindowLocator gameWindowLocator,
         WindowsGameScreenshotCapture gameScreenshotCapture,
         SendInputAdapter sendInputAdapter,
-        WindowsGameWindowController gameWindowController)
+        WindowsGameWindowController gameWindowController,
+        ImagePreprocessor imagePreprocessor)
     {
         _gameLaunchTargetPicker = gameLaunchTargetPicker;
         _gameLauncher = gameLauncher;
@@ -40,6 +43,28 @@ public sealed class MainViewModel : ObservableObject
         _gameScreenshotCapture = gameScreenshotCapture;
         _sendInputAdapter = sendInputAdapter;
         _gameWindowController = gameWindowController;
+        _imagePreprocessor = imagePreprocessor;
+
+        ClientSizeOption defaultClientSize =
+            new ClientSizeOption(
+                1280,
+                720);
+
+        ClientSizeOptions =
+            new ClientSizeOption[]
+            {
+                new ClientSizeOption(1024, 576),
+                defaultClientSize,
+                new ClientSizeOption(1360, 765),
+                new ClientSizeOption(1366, 768),
+                new ClientSizeOption(1440, 810),
+                new ClientSizeOption(1600, 900),
+                new ClientSizeOption(1920, 1080),
+                new ClientSizeOption(2560, 1440)
+            };
+
+        _selectedClientSizeOption =
+            defaultClientSize;
 
         SelectLaunchTargetCommand =
             new RelayCommand(SelectLaunchTarget);
@@ -81,6 +106,11 @@ public sealed class MainViewModel : ObservableObject
             new RelayCommand(
                 SetGameWindowClientSize,
                 CanControlGameWindow);
+
+        CreateGrayscaleCopyCommand =
+            new AsyncRelayCommand(
+                CreateGrayscaleCopyAsync,
+                CanCreateGrayscaleCopy);
     }
 
     public string SelectedLaunchTargetPath
@@ -108,21 +138,17 @@ public sealed class MainViewModel : ObservableObject
             value);
     }
 
-    public string TargetClientWidthText
+    public IReadOnlyList<ClientSizeOption> ClientSizeOptions
     {
-        get => _targetClientWidthText;
-
-        set => SetProperty(
-            ref _targetClientWidthText,
-            value);
+        get;
     }
 
-    public string TargetClientHeightText
+    public ClientSizeOption? SelectedClientSizeOption
     {
-        get => _targetClientHeightText;
+        get => _selectedClientSizeOption;
 
         set => SetProperty(
-            ref _targetClientHeightText,
+            ref _selectedClientSizeOption,
             value);
     }
 
@@ -147,6 +173,7 @@ public sealed class MainViewModel : ObservableObject
 
     public IRelayCommand SetGameWindowClientSizeCommand { get; }
 
+    public IAsyncRelayCommand CreateGrayscaleCopyCommand { get; }
 
     private void SelectLaunchTarget()
     {
@@ -299,6 +326,8 @@ public sealed class MainViewModel : ObservableObject
             return;
         }
 
+        SetLatestCapturePath(null);
+
         string captureDirectory =
             Path.Combine(
                 Environment.GetFolderPath(
@@ -323,10 +352,24 @@ public sealed class MainViewModel : ObservableObject
                     outputPath,
                     cancellationToken);
 
-        StatusMessage = result.IsSuccess
-            ? $"{result.Message} " +
-              $"图片尺寸：{result.Width} × {result.Height}。"
-            : result.Message;
+        if (!result.IsSuccess)
+        {
+            StatusMessage = result.Message;
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(result.FilePath))
+        {
+            StatusMessage =
+                "截图成功，但没有返回图片路径。";
+            return;
+        }
+
+        SetLatestCapturePath(result.FilePath);
+
+        StatusMessage =
+            $"{result.Message} " +
+            $"图片尺寸：{result.Width} × {result.Height}。";
     }
 
     private bool CanUseGameInput()
@@ -442,22 +485,13 @@ public sealed class MainViewModel : ObservableObject
             return;
         }
 
-        if (!int.TryParse(
-                TargetClientWidthText,
-                out int clientWidth))
+        ClientSizeOption? selectedSize =
+            SelectedClientSizeOption;
+
+        if (selectedSize is null)
         {
             StatusMessage =
-                "客户区宽度必须是整数。";
-
-            return;
-        }
-
-        if (!int.TryParse(
-                TargetClientHeightText,
-                out int clientHeight))
-        {
-            StatusMessage =
-                "客户区高度必须是整数。";
+                "请选择客户区大小。";
 
             return;
         }
@@ -465,14 +499,8 @@ public sealed class MainViewModel : ObservableObject
         GameWindowControlResult controlResult =
             _gameWindowController.SetClientSize(
                 window,
-                clientWidth,
-                clientHeight);
-
-        if (!controlResult.IsSuccess)
-        {
-            StatusMessage = controlResult.Message;
-            return;
-        }
+                selectedSize.Width,
+                selectedSize.Height);
 
         GameWindowLookupResult refreshResult =
             _gameWindowLocator.FindByProcessName(
@@ -491,11 +519,73 @@ public sealed class MainViewModel : ObservableObject
             return;
         }
 
-        SetLocatedGameWindow(
-            refreshResult.Window);
+        GameWindowInfo refreshedWindow =
+            refreshResult.Window;
 
-        StatusMessage =
-            $"{controlResult.Message} " +
-            $"窗口信息已刷新。";
+        SetLocatedGameWindow(
+            refreshedWindow);
+
+        StatusMessage = controlResult.IsSuccess
+            ? $"{controlResult.Message} " +
+              $"窗口信息已刷新。"
+            : $"{controlResult.Message} " +
+              $"当前实际客户区：" +
+              $"{refreshedWindow.ClientWidth} × " +
+              $"{refreshedWindow.ClientHeight}。";
+    }
+
+    private void SetLatestCapturePath(
+        string? filePath)
+    {
+        _latestCapturePath = filePath;
+
+        CreateGrayscaleCopyCommand
+            .NotifyCanExecuteChanged();
+    }
+
+    private bool CanCreateGrayscaleCopy()
+    {
+        return !string.IsNullOrWhiteSpace(
+            _latestCapturePath);
+    }
+
+    private async Task CreateGrayscaleCopyAsync(
+        CancellationToken cancellationToken)
+    {
+        string? sourcePath =
+            _latestCapturePath;
+
+        if (string.IsNullOrWhiteSpace(sourcePath))
+        {
+            StatusMessage =
+                "请先保存一张客户区截图。";
+
+            return;
+        }
+
+        string outputDirectory =
+            Path.Combine(
+                Environment.GetFolderPath(
+                    Environment.SpecialFolder.LocalApplicationData),
+                "HimeBot",
+                "processed");
+
+        string outputFileName =
+            $"{Path.GetFileNameWithoutExtension(sourcePath)}" +
+            "-grayscale.png";
+
+        string outputPath =
+            Path.Combine(
+                outputDirectory,
+                outputFileName);
+
+        ImageProcessingResult result =
+            await _imagePreprocessor
+                .CreateGrayscaleCopyAsync(
+                    sourcePath,
+                    outputPath,
+                    cancellationToken);
+
+        StatusMessage = result.Message;
     }
 }

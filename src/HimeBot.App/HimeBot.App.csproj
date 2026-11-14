@@ -12,6 +12,7 @@
   <ItemGroup>
     <ProjectReference Include="..\HimeBot.Core\HimeBot.Core.csproj" />
     <ProjectReference Include="..\HimeBot.Platform.Windows\HimeBot.Platform.Windows.csproj" />
+    <ProjectReference Include="..\HimeBot.Vision\HimeBot.Vision.csproj" />
   </ItemGroup>
 
 </Project>

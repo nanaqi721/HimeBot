@@ -10,6 +10,58 @@
 - `Tutorial/` 是 `AGENTS.md` 要求的智能体生成参考实现。除非用户明确要求使用，否则它不是当前实际动手开发的项目。
 - `learn/` 包含用户的学习笔记。除非用户明确要求编辑，否则应予以保留。
 
+## 本次会话交接摘要
+
+### 当前可用功能
+
+当前根解决方案已经形成以下可人工操作的纵向链路：
+
+1. 选择并通过 Windows Shell 打开 DMM 游戏 `.url` 快捷方式。
+2. 按 `koisen` 进程名称查找游戏主窗口并读取客户区尺寸。
+3. 使用 Windows Graphics Capture 保存不包含标题栏和边框的客户区 PNG。
+4. 将鼠标移动到游戏客户区中心，并发送一次左键点击。
+5. 设置或取消游戏窗口置顶。
+6. 从单个下拉菜单选择已验证尺寸并调整游戏客户区；默认选项为 `1280 × 720`。
+
+最近一次 x64 Debug 构建成功，结果为 0 个警告、0 个错误。上述尺寸下拉菜单已由用户人工运行验证，可以正常工作。当前没有测试项目，用户明确决定暂不引入 xUnit。
+
+### 发生的问题与解决结论
+
+| 事项 | 发生的情况 | 处理与结论 |
+| --- | --- | --- |
+| 游戏启动 | 直接启动 `koisen.exe` 会短暂出现后退出 | 改为选择 DMM 创建的 `.url`，验证其 `dmmgameplayer:` URI，再交给 Windows Shell 打开；已人工验证 |
+| 窗口查找 | 游戏启动初期偶尔取得无效客户区尺寸 | 当前保留“查找游戏窗口”手动重试，尚未增加自动等待和重试策略 |
+| 早期截图方案 | `CopyFromScreen` 会截入遮挡窗口；`PrintWindow` 对游戏返回黑屏 | 两种方案均不作为生产后备路径，生产截图固定使用 Windows Graphics Capture |
+| WGC 客户区截图 | WGC 原始帧包含标题栏和边框 | 使用 `ClientToScreen` 与 DWM 扩展窗口边界动态计算客户区裁剪位置，已人工验证 |
+| 裁剪计算抽取 | 曾新增 `ClientCropRectangleCalculator`，但用户认为立即替换原方法收益有限 | 类暂时保留但不接入生产截图；等以后学习并引入测试后再决定是否替换 |
+| `SendInput` 编译 | `NativeInput[] inputs = [input];` 触发 CS8652，因为当前语言版本不支持 collection expression | 改为兼容当前项目的 `new NativeInput[] { input }`，随后构建和人工输入验证成功 |
+| 窗口最小化 | 最小化后无法按原流程截图或移动、点击鼠标 | 已确认这与最小化窗口的可用表面、坐标和交互状态有关；本阶段明确跳过后台最小化自动化 |
+| 完全遮挡游戏 | Chrome 完全覆盖游戏后，游戏停止提交新画面，WGC 连续取得相同帧；移开后恢复 | 这是目标游戏停止渲染，而不是 WGC 复制遮挡内容；已增加设置和取消置顶功能作为当前规避方案 |
+| 客户区尺寸 | 游戏接受 `16:9` 或近似比例，但拒绝 `1280 × 800` 并恢复原尺寸 | 移除自由宽高输入，改为单个已验证尺寸下拉菜单；无论调整成功或失败都刷新实际窗口信息 |
+| 窗口居中 | 希望将游戏窗口移动到屏幕中心 | 已记录为待办，计划按窗口当前所在显示器的工作区居中；尚未编写相关代码 |
+
+### 当前未提交工作树
+
+本次会话结束时仍有以下未提交内容，下一窗口必须保留并在此基础上继续：
+
+```text
+ M PROJECT_STATUS.md
+ M docs/project-structure.md
+ M src/HimeBot.App/MainWindow.xaml
+ M src/HimeBot.App/ViewModels/MainViewModel.cs
+?? src/HimeBot.App/ViewModels/ClientSizeOption.cs
+```
+
+其中三个 App 文件实现尺寸下拉菜单；两个 Markdown 文件记录架构、验证结果与后续待办。`ClientSizeOption.cs` 虽然尚未被 Git 跟踪，但已经参与成功构建，不应遗漏或删除。
+
+### 下一窗口恢复顺序
+
+1. 阅读根目录 `AGENTS.md`、本文件和 `docs/project-structure.md`。
+2. 执行 `git status --short`，确认上述未提交文件仍然存在。
+3. 不要重新实现已经完成人工验证的尺寸下拉菜单。
+4. 如果继续窗口居中待办，先讨论当前显示器工作区、完整窗口尺寸和 `SetWindowPos` 坐标，再按 Native、Controller、MVVM、WPF 的顺序逐步实现。
+5. OCR 和 xUnit 继续暂缓，除非用户在新窗口明确改变决定。
+
 ## 当前里程碑
 
 第一个启动功能已经从 WPF 经由 MVVM 连接到 Windows 启动器，并且已经确定 DMM 专用的启动目标。当前实现已经通过成功的 x64 构建验证。
@@ -33,6 +85,8 @@ Windows Graphics Capture 单帧客户区截图链路已经完成构建和人工�
 Windows 鼠标输入技术验证已经完成：`SendInputAdapter` 能够根据已定位的游戏窗口，将客户区像素坐标经 `ClientToScreen` 转为屏幕坐标，再按虚拟桌面归一化后通过 Win32 `SendInput` 提交绝对鼠标移动。`ClickClientPoint` 在移动成功后继续提交左键按下和左键抬起事件，WPF 通过两个 MVVM 命令分别触发移动与点击。人工运行已确认光标可以正确移动到游戏客户区中心，并且游戏会对测试点击产生实际响应。
 
 窗口层级控制已经完成构建和人工运行验证：`WindowsGameWindowController` 根据已定位窗口的进程 ID 重新取得当前主窗口句柄，并通过 `SetWindowPos` 在 `HWND_TOPMOST` 与 `HWND_NOTOPMOST` 之间切换，同时使用 `SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE` 保持位置、尺寸和焦点不变。WPF 已经通过两个 MVVM 命令提供设置和取消置顶按钮；人工运行确认普通窗口无法覆盖置顶后的游戏，取消置顶后游戏恢复普通 Z-order。
+
+客户区尺寸调整已经完成技术验证：`WindowsGameWindowController.SetClientSize` 根据当前完整窗口与客户区的尺寸差换算目标外框尺寸，通过 `SetWindowPos` 调整后再用 `GetClientRect` 验证。人工运行确认 `1024 × 576`、`1280 × 720`、`1360 × 765`、`1366 × 768`、`1440 × 810`、`1600 × 900`、`1920 × 1080` 和 `2560 × 1440` 可用；`1280 × 800` 会被游戏拒绝并恢复原始大小。WPF 已改为只提供这些已验证尺寸的单个下拉菜单，并在调整成功或失败后刷新实际窗口信息；下拉菜单已完成人工运行验证。
 
 WGC、Direct3D/WinRT 互操作与裁剪的长期决定记录在 `docs/decisions/0001-use-windows-graphics-capture.md`，实现流程和本次错误排查记录在 `docs/guides/windows-graphics-capture.md`。
 
@@ -62,6 +116,8 @@ WGC、Direct3D/WinRT 互操作与裁剪的长期决定记录在 `docs/decisions/
 20. 新增 `GameInputResult`、`SendInputAdapter` 与所需的 Win32 输入结构，通过组合根、`MainViewModel` 命令和 WPF 按钮接入“测试移动鼠标”；已人工确认光标能正确移动到游戏客户区中心。
 21. 在 `SendInputAdapter` 中组合客户区坐标移动、左键按下和左键抬起，通过 `MainViewModel` 与“测试鼠标点击”按钮接入；已通过 x64 构建，并人工确认游戏会响应点击。
 22. 新增 `GameWindowControlResult`、`WindowsGameWindowController` 与原生 `SetWindowPos` 声明，并通过组合根、`MainViewModel` 命令和 WPF 按钮接入设置与取消置顶；已通过 x64 构建和人工运行验证。
+23. 为 `WindowsGameWindowController` 增加客户区尺寸调整与调整后验证，WPF 第一版使用宽高文本输入；已通过 x64 构建，并人工确认一组可用的近似 `16:9` 尺寸以及 `1280 × 800` 被游戏拒绝的行为。
+24. 用单个尺寸下拉菜单替换宽高文本输入，只提供已验证尺寸，并在调整成功或失败后刷新实际窗口信息；已通过 x64 构建和人工运行验证。
 
 本阶段已经完成的人工观察：
 
@@ -72,6 +128,7 @@ WGC、Direct3D/WinRT 互操作与裁剪的长期决定记录在 `docs/decisions/
 - 通过“测试鼠标点击”命令，游戏会对客户区中心的左键点击产生实际响应。
 - Chrome 逐步扩大至完全遮挡游戏时，游戏渲染画面停止更新；WGC 保存的图片仍然有效，但内容重复；移开 Chrome 后画面恢复更新。
 - 设置游戏置顶后，普通窗口无法覆盖游戏；取消置顶后，游戏恢复普通窗口层级。
+- 游戏接受已验证的 `16:9` 或近似 `16:9` 客户区尺寸；明显为 `16:10` 的 `1280 × 800` 会被游戏恢复为调整前的原始大小。
 
 ## 当前仓库结构
 
@@ -103,7 +160,9 @@ src/HimeBot.App/
 ├─ FilePicking/
 │  ├─ IGameLaunchTargetPicker.cs
 │  └─ OpenFileDialogGameLaunchTargetPicker.cs
-├─ ViewModels/MainViewModel.cs
+├─ ViewModels/
+│  ├─ ClientSizeOption.cs
+│  └─ MainViewModel.cs
 ├─ HimeBot.App.csproj
 ├─ App.xaml.cs
 └─ MainWindow.xaml
@@ -191,18 +250,26 @@ HimeBot.App               -> bin/x64/Debug/net7.0-windows10.0.19041.0/HimeBot.Ap
 
 `SetWindowPos` 窗口层级控制已完成构建和人工运行验证：设置置顶后普通窗口无法覆盖游戏，取消置顶后恢复普通 Z-order。该结果不改变最小化、其他置顶窗口、锁屏或安全桌面的既有限制。
 
+客户区尺寸下拉菜单已完成构建和人工运行验证。默认 `1280 × 720` 与其他已验证选项可以正常调整游戏窗口；自由宽高输入已经移除，调整后会刷新实际窗口信息。
+
 ## 未解决的决定
 
 - 后续的成功检测机制尚未决定。可能的信号包括检测游戏进程或游戏窗口；当前启动器有意只报告 Shell 已接受请求。
 - 尚未决定 HimeBot 应该继续要求用户选择 DMM 快捷方式、记住上一次选择，还是自动发现该快捷方式。
 
-## 下一步目标
+## 待办事项
 
-继续阶段 0 的视觉识别准备：
+### 游戏窗口居中
 
-1. 在游戏的稳定场景保存一张客户区截图，优先选择首页或其他容易重复进入的画面。
-2. 从截图中选择一个边界清晰、结果容易人工判断的文字或数字区域，记录其客户区像素矩形。
-3. 先用这个真实区域定义第一项识别实验，再决定支持 `.NET 7` 的 OCR adapter 和是否首次创建 `HimeBot.Vision`。
-4. 当前不提前创建通用 OCR interface、任务状态机或 xUnit 项目。
+状态：尚未实现。
 
-当前仍只承诺一次性客户区截图、手动输入诊断和手动窗口层级控制，不实现连续捕获、实时预览、最小化窗口捕获、OCR、自动点击流程或任务状态机。
+计划继续阶段 0 的窗口控制：
+
+1. 读取游戏窗口当前所在显示器的工作区，不把任务栏区域计算在内。
+2. 将完整游戏窗口移动到该工作区中心，同时保持窗口尺寸、Z-order 和焦点不变。
+3. 通过 MVVM 命令和 WPF 按钮手动触发窗口居中。
+4. 构建后人工验证窗口位置；如果有多台显示器，再验证窗口会在当前显示器居中。
+
+计划使用 `MonitorFromWindow` 和 `GetMonitorInfo` 获取当前显示器工作区，再使用现有的 `SetWindowPos` 移动窗口。当前尚未添加相关 Win32 声明、控制器方法、MVVM 命令或 WPF 按钮。
+
+当前仍只承诺一次性客户区截图、手动输入诊断、窗口层级控制和客户区尺寸调整，不实现连续捕获、实时预览、最小化窗口捕获、OCR、自动点击流程或任务状态机。

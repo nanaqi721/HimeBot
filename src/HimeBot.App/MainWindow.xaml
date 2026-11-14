@@ -5,12 +5,13 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:HimeBot.App"
         mc:Ignorable="d"
-        Title="HimeBot" 
-        Height="380" 
+        Title="HimeBot"
+        Height="430"
         Width="640">
 
     <Grid Margin="24">
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
@@ -75,6 +76,17 @@
             HorizontalAlignment="Right"
             Orientation="Horizontal">
 
+            <Button Padding="16,6"
+                    Content="生成灰度图"
+                    Command="{Binding CreateGrayscaleCopyCommand}" />
+
+        </StackPanel>
+
+        <StackPanel Grid.Row="4"
+            Margin="0,8,0,0"
+            HorizontalAlignment="Right"
+            Orientation="Horizontal">
+
             <Button Margin="0,0,8,0"
             Padding="16,6"
             Content="设置游戏置顶"
@@ -86,7 +98,7 @@
 
         </StackPanel>
 
-        <StackPanel Grid.Row="4"
+        <StackPanel Grid.Row="5"
             Margin="0,12,0,0"
             HorizontalAlignment="Right"
             Orientation="Horizontal">
@@ -95,21 +107,11 @@
                VerticalAlignment="Center"
                Text="客户区大小" />
 
-            <TextBox Width="72"
-             Margin="0,0,8,0"
-             MaxLength="4"
-             Text="{Binding TargetClientWidthText,
-                            UpdateSourceTrigger=PropertyChanged}" />
-
-            <TextBlock Margin="0,0,8,0"
-               VerticalAlignment="Center"
-               Text="×" />
-
-            <TextBox Width="72"
-             Margin="0,0,8,0"
-             MaxLength="4"
-             Text="{Binding TargetClientHeightText,
-                            UpdateSourceTrigger=PropertyChanged}" />
+            <ComboBox Width="160"
+                      Margin="0,0,8,0"
+                      ItemsSource="{Binding ClientSizeOptions}"
+                      SelectedItem="{Binding SelectedClientSizeOption, Mode=TwoWay}"
+                      DisplayMemberPath="DisplayName" />
 
             <Button Padding="16,6"
             Content="设置标准客户区大小"
@@ -117,11 +119,11 @@
 
         </StackPanel>
 
-        <TextBlock Grid.Row="5"
+        <TextBlock Grid.Row="6"
                    Margin="0,16,0,0"
                    Text="{Binding StatusMessage}"
                    TextWrapping="Wrap" />
 
     </Grid>
-    
+
 </Window>

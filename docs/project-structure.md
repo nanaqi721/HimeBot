@@ -79,7 +79,7 @@ HimeBot/
 
 - `HimeBot.App`：WPF 程序入口、启动目标选择、启动命令、窗口查找命令和状态显示。
 - `HimeBot.Core`：游戏启动与窗口定位的结果模型和外部边界接口。
-- `HimeBot.Platform.Windows`：DMM Shell 启动、Windows 进程窗口定位、客户区尺寸读取、单帧截图和 `SendInput` 鼠标输入。
+- `HimeBot.Platform.Windows`：DMM Shell 启动、Windows 进程窗口定位、客户区尺寸读取与调整、单帧截图和 `SendInput` 鼠标输入。
 
 当前引用方向为：
 
@@ -101,6 +101,8 @@ HimeBot.Platform.Windows ──> HimeBot.Core
 | Shell 启动 adapter | `src/HimeBot.Platform.Windows/Launching/` | 已实现并人工验证 |
 | Windows 窗口定位与 Win32 客户区读取 | `src/HimeBot.Platform.Windows/Windowing/`、`src/HimeBot.Platform.Windows/Native/` | 已实现并人工验证 |
 | Windows 窗口置顶与取消置顶 | `src/HimeBot.Platform.Windows/Windowing/`、`src/HimeBot.Platform.Windows/Native/` | 已接入 WPF，并完成构建和人工运行验证 |
+| Windows 客户区尺寸调整 | `src/HimeBot.Platform.Windows/Windowing/`、`src/HimeBot.Platform.Windows/Native/` | 已验证尺寸下拉菜单已完成构建和人工运行验证 |
+| Windows 游戏窗口居中 | `src/HimeBot.Platform.Windows/Windowing/`、`src/HimeBot.Platform.Windows/Native/` | 待办：移动到当前显示器工作区中心，尚未实现 |
 | 单帧截图与 Windows Graphics Capture | `src/HimeBot.Platform.Windows/ScreenCapture/` | WGC 遮挡隔离与客户区动态裁剪均已人工运行验证 |
 | 客户区坐标鼠标移动与点击 | `src/HimeBot.Platform.Windows/Input/` | `SendInput` 移动和左键点击均已实现并人工验证 |
 
@@ -301,7 +303,7 @@ WGC 选型、Direct3D/WinRT 桥接和客户区裁剪约束见 `docs/decisions/00
 
 `SendInputAdapter` 目前暴露客户区像素坐标移动和左键点击入口，内部隐藏窗口句柄重新取得、客户区校验、`ClientToScreen`、虚拟桌面坐标归一化与 Win32 `SendInput` 调用。点击入口复用移动步骤，再提交左键按下和抬起事件。WPF 通过 MVVM 命令手动触发这两个诊断操作，二者均已人工验证；目前仍没有第二个 input adapter，因此不新增 Core interface。
 
-`WindowsGameWindowController` 目前暴露一个设置或取消置顶的入口，内部隐藏窗口句柄重新取得、`SetWindowPos` 参数与 Win32 错误读取。它与只负责查找窗口的 `WindowsGameWindowLocator` 分离，并已通过 MVVM 命令接入 WPF；设置和取消置顶都已完成人工验证。当前只有一个 Windows 实现，因此不新增 Core interface。
+`WindowsGameWindowController` 目前暴露设置或取消置顶以及调整客户区尺寸的入口，内部隐藏窗口句柄重新取得、完整窗口与客户区尺寸换算、`SetWindowPos` 参数、调整后尺寸验证与 Win32 错误读取。它与只负责查找窗口的 `WindowsGameWindowLocator` 分离，并已通过 MVVM 命令接入 WPF；置顶控制和一组近似 `16:9` 的客户区尺寸均已人工验证。当前只有一个 Windows 实现，因此不新增 Core interface。
 
 ### 5.5 HimeBot.Vision
 

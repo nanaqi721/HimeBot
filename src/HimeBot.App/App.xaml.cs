@@ -6,6 +6,7 @@ using HimeBot.Platform.Windows.Input;
 using HimeBot.Platform.Windows.Launching;
 using HimeBot.Platform.Windows.ScreenCapture;
 using HimeBot.Platform.Windows.Windowing;
+using HimeBot.Vision.ImageProcessing;
 using System.Windows;
 
 namespace HimeBot.App;
@@ -30,13 +31,16 @@ public partial class App : Application
 
         var gameWindowController = new WindowsGameWindowController();
 
+        var imagePreprocessor = new ImagePreprocessor();
+
         var mainViewModel = new MainViewModel(
             gameLaunchTargetPicker,
             gameLauncher,
             gameWindowLocator,
             gameScreenShotCapture,
             sendInputAdapter,
-            gameWindowController);
+            gameWindowController,
+            imagePreprocessor);
         var mainWindow = new MainWindow
         {
             DataContext = mainViewModel

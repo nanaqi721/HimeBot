@@ -8,6 +8,7 @@ using HimeBot.Platform.Windows.Input;
 using HimeBot.Platform.Windows.ScreenCapture;
 using HimeBot.Platform.Windows.Windowing;
 using HimeBot.Vision.ImageProcessing;
+using HimeBot.Vision.Ocr;
 using System.IO;
 
 namespace HimeBot.App.ViewModels;
@@ -26,10 +27,12 @@ public sealed class MainViewModel : ObservableObject
     private readonly SendInputAdapter _sendInputAdapter;
     private readonly WindowsGameWindowController _gameWindowController;
     private readonly ImagePreprocessor _imagePreprocessor;
+    private readonly TesseractTextRecognizer _textRecognizer;
 
     private string _selectedLaunchTargetPath = string.Empty;
     private string _statusMessage = "请选择 DMM 游戏快捷方式。";
     private string? _latestCapturePath;
+    private string? _latestOcrRegionPath;
     private ClientSizeOption? _selectedClientSizeOption;
     private GameWindowInfo? _locatedGameWindow;
 
@@ -40,7 +43,8 @@ public sealed class MainViewModel : ObservableObject
         WindowsGameScreenshotCapture gameScreenshotCapture,
         SendInputAdapter sendInputAdapter,
         WindowsGameWindowController gameWindowController,
-        ImagePreprocessor imagePreprocessor)
+        ImagePreprocessor imagePreprocessor,
+        TesseractTextRecognizer textRecognizer)
     {
         _gameLaunchTargetPicker = gameLaunchTargetPicker;
         _gameLauncher = gameLauncher;
@@ -49,6 +53,7 @@ public sealed class MainViewModel : ObservableObject
         _sendInputAdapter = sendInputAdapter;
         _gameWindowController = gameWindowController;
         _imagePreprocessor = imagePreprocessor;
+        _textRecognizer = textRecognizer;
 
         ClientSizeOption defaultClientSize =
             new ClientSizeOption(
@@ -126,6 +131,11 @@ public sealed class MainViewModel : ObservableObject
             new AsyncRelayCommand(
                 CreateOcrRegionCopyAsync,
                 CanCreateProcessedCopy);
+
+        RecognizeOcrRegionCommand =
+            new AsyncRelayCommand(
+                RecognizeOcrRegionAsync,
+                CanRecognizeOcrRegion);
     }
 
     public string SelectedLaunchTargetPath
@@ -193,6 +203,8 @@ public sealed class MainViewModel : ObservableObject
     public IAsyncRelayCommand CreateBinaryCopyCommand { get; }
 
     public IAsyncRelayCommand CreateOcrRegionCopyCommand { get; }
+
+    public IAsyncRelayCommand RecognizeOcrRegionCommand { get; }
 
     private void SelectLaunchTarget()
     {
@@ -558,6 +570,8 @@ public sealed class MainViewModel : ObservableObject
     {
         _latestCapturePath = filePath;
 
+        SetLatestOcrRegionPath(null);
+
         CreateGrayscaleCopyCommand
             .NotifyCanExecuteChanged();
 
@@ -565,6 +579,15 @@ public sealed class MainViewModel : ObservableObject
             .NotifyCanExecuteChanged();
 
         CreateOcrRegionCopyCommand
+            .NotifyCanExecuteChanged();
+    }
+
+    private void SetLatestOcrRegionPath(
+        string? filePath)
+    {
+        _latestOcrRegionPath = filePath;
+
+        RecognizeOcrRegionCommand
             .NotifyCanExecuteChanged();
     }
 
@@ -668,6 +691,8 @@ public sealed class MainViewModel : ObservableObject
             return;
         }
 
+        SetLatestOcrRegionPath(null);
+
         string outputDirectory =
             Path.Combine(
                 Environment.GetFolderPath(
@@ -695,6 +720,64 @@ public sealed class MainViewModel : ObservableObject
                     ResourceCounterRegionHeight,
                     cancellationToken);
 
+        if (!result.IsSuccess)
+        {
+            StatusMessage = result.Message;
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(result.OutputPath))
+        {
+            StatusMessage =
+                "资源区域裁剪成功，但没有返回输出路径。";
+
+            return;
+        }
+
+        SetLatestOcrRegionPath(result.OutputPath);
         StatusMessage = result.Message;
+    }
+
+    private bool CanRecognizeOcrRegion()
+    {
+        return !string.IsNullOrWhiteSpace(
+            _latestOcrRegionPath);
+    }
+
+    private async Task RecognizeOcrRegionAsync(
+        CancellationToken cancellationToken)
+    {
+        string? imagePath =
+            _latestOcrRegionPath;
+
+        if (string.IsNullOrWhiteSpace(imagePath))
+        {
+            StatusMessage =
+                "请先裁剪资源数字区域。";
+
+            return;
+        }
+
+        OcrRecognitionResult result =
+            await _textRecognizer
+                .RecognizeSingleLineAsync(
+                    imagePath,
+                    cancellationToken);
+
+        if (!result.IsSuccess)
+        {
+            StatusMessage = result.Message;
+            return;
+        }
+
+        string displayText =
+            string.IsNullOrWhiteSpace(result.RawText)
+                ? "（未识别到文字）"
+                : result.RawText.ReplaceLineEndings(" ");
+
+        StatusMessage =
+            $"{result.Message} " +
+            $"原始文字：{displayText}；" +
+            $"平均置信度：{result.MeanConfidence:P1}。";
     }
 }

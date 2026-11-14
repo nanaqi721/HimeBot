@@ -24,13 +24,15 @@ HimeBot 是一个基于 C# 和 WPF 的游戏 OCR 自动化程序。初期面向�
 - MVVM 工具：`CommunityToolkit.Mvvm`
 - Direct3D 11 绑定：`Vortice.Direct3D11` 3.5.0
 - 依赖注入、配置和日志：`Microsoft.Extensions.*`
-- 测试框架：xUnit
+- 测试框架：计划使用 xUnit，当前尚未创建测试项目
 - 图像处理：`OpenCvSharp4.Windows` 4.13.0.20261107
-- OCR 引擎：通过 interface 隔离，待真实截图验证后确定
+- OCR 引擎：`TesseractOCR` 5.3.5，当前使用 `tessdata_fast` 的日文模型
 
 OCR 和图像处理库包含原生依赖，因此初期统一使用 x64，不使用 AnyCPU。
 
 `.NET 7` 是当前项目的明确约束。除非项目所有者主动修改该决定，否则项目文件、依赖选择和示例代码都保持兼容 `.NET 7`。目标框架中的 Windows 10 版本用于开放 Windows Graphics Capture 所需的 Windows SDK 接口，不表示升级到更高的 .NET 版本。
+
+`TesseractOCR` 固定为 5.3.5。曾验证的 5.5.2 会依赖 `Microsoft.Extensions.Logging.Abstractions` 10.0.3，并传递产生若干“不支持 net7.0”的构建警告；5.3.5 使用与项目基线同代的日志抽象 7.0.1，现有 OCR API 无需改写，构建中的相关支持警告已经消失。该降级同时把原生 Tesseract 从 5.5.1 改为 5.3.1，因此仍需保留真实 ROI 人工回归，而不能只以编译成功作为完成标准。
 
 ## 3. Solution 目录
 
@@ -77,10 +79,10 @@ HimeBot/
 
 用户实际动手开发的解决方案目前位于仓库根目录的 `HimeBot.sln` 和 `src/`；`Tutorial/` 继续作为智能体生成参考实现的独立工作区。实际项目当前包含：
 
-- `HimeBot.App`：WPF 程序入口、启动目标选择、启动命令、窗口查找命令和状态显示。
+- `HimeBot.App`：WPF 程序入口、启动目标选择、窗口与截图诊断命令、OCR 诊断命令和状态显示。
 - `HimeBot.Core`：游戏启动与窗口定位的结果模型和外部边界接口。
 - `HimeBot.Platform.Windows`：DMM Shell 启动、Windows 进程窗口定位、客户区尺寸读取与调整、单帧截图和 `SendInput` 鼠标输入。
-- `HimeBot.Vision`：使用 OpenCvSharp 生成灰度图、Otsu 二值图和矩形 ROI 副本；OCR 引擎尚未选择。
+- `HimeBot.Vision`：使用 OpenCvSharp 生成灰度图、Otsu 二值图和矩形 ROI 副本，并使用 Tesseract 识别日文单行文字。
 
 当前引用方向为：
 
@@ -107,7 +109,8 @@ HimeBot.Platform.Windows ──> HimeBot.Core
 | Windows 游戏窗口居中 | `src/HimeBot.Platform.Windows/Windowing/`、`src/HimeBot.Platform.Windows/Native/` | 待办：移动到当前显示器工作区中心，尚未实现 |
 | 单帧截图与 Windows Graphics Capture | `src/HimeBot.Platform.Windows/ScreenCapture/` | WGC 遮挡隔离与客户区动态裁剪均已人工运行验证 |
 | 客户区坐标鼠标移动与点击 | `src/HimeBot.Platform.Windows/Input/` | `SendInput` 移动和左键点击均已实现并人工验证 |
-| 灰度图、Otsu 二值图与矩形 ROI 裁剪 | `src/HimeBot.Vision/ImageProcessing/` | 已通过 MVVM 命令接入 WPF；灰度和二值图已人工验证，资源数字 ROI 待人工验证 |
+| 灰度图、Otsu 二值图与矩形 ROI 裁剪 | `src/HimeBot.Vision/ImageProcessing/` | 已通过 MVVM 命令接入 WPF；资源数字 ROI 已人工验证 |
+| 日文单行 OCR | `src/HimeBot.Vision/Ocr/`、`src/HimeBot.Vision/tessdata/` | 已接入 WPF；真实资源 ROI 已正确识别 `236万/454万` |
 
 `ScreenCapture/ClientCropRectangleCalculator.cs` 是为后续学习测试保留的内部纯计算类。它目前尚未接入生产截图路径，不代表现有裁剪行为已经重构；`WindowsGameScreenshotCapture` 仍使用自身的 `TryGetClientCropRectangle` 完成 Win32 查询、坐标计算和越界校验。
 
@@ -316,16 +319,21 @@ WGC 选型、Direct3D/WinRT 桥接和客户区裁剪约束见 `docs/decisions/00
 
 ```text
 HimeBot.Vision/
-└─ ImageProcessing/
-   ├─ ImagePreprocessor.cs
-   └─ ImageProcessingResult.cs
+├─ ImageProcessing/
+│  ├─ ImagePreprocessor.cs
+│  └─ ImageProcessingResult.cs
+├─ Ocr/
+│  ├─ OcrRecognitionResult.cs
+│  └─ TesseractTextRecognizer.cs
+└─ tessdata/
+   └─ jpn.traineddata
 ```
 
 `ImagePreprocessor` 当前对外提供异步灰度副本、Otsu 二值副本和矩形 ROI 副本操作，隐藏 OpenCV 原生库加载、路径与区域边界检查、图片读取、输出目录创建、资源释放和异常转换。App 通过 MVVM 命令处理最近一次成功截图，并将诊断图片保存到 `%LocalAppData%/HimeBot/processed/`。当前资源数字诊断按钮使用 `1280 × 720` 参考截图上的临时坐标；区域稳定后再移入 Koihime 专用配置。
 
-后续在真实 OCR 区域和 OCR 引擎确定后，再按需创建 `Ocr/` 与 `Matching/`，不提前生成空目录或接口。
+`TesseractTextRecognizer` 当前加载输出目录中的 `tessdata/jpn.traineddata`，使用日文 LSTM 与单行分割模式，并返回 OCR 原文和平均置信度。App 直接注入这一生产实现；由于还没有第二个 OCR adapter 或测试 adapter，当前不创建 `ITextRecognizer`。`Matching/` 仍等到第一次需要模板匹配时再创建。
 
-OCR adapter 只返回候选文字、位置和置信度。文字纠错、数值范围和游戏规则校验属于 `HimeBot.Game.Koihime`。
+OCR adapter 只返回原始文字和置信度。空白清理、文字纠错、数值范围和游戏规则校验属于 `HimeBot.Game.Koihime`。
 
 ## 6. 主要 seam 与 adapters
 
@@ -339,6 +347,8 @@ seam 是可以替换实现而不修改调用方的位置。本项目初期保留
 | `IRunRecorder` | 文件运行记录 | 内存运行记录 |
 
 只有存在明确替换需求时才增加新 seam，避免为每一个类都创建 interface。
+
+上表是目标 seam，而不是当前接口清单。当前只有一个 Tesseract 生产实现，因此 `ITextRecognizer` 尚未创建；引入确定性测试 adapter 时再建立这一边界。
 
 ## 7. 自动化运行流程
 
@@ -423,7 +433,7 @@ Tutorial/tests/HimeBot.Game.Koihime.Tests/
 
 - 验证游戏窗口能否稳定截图且不会黑屏。
 - 验证 `SendInput` 是否能被游戏接受。
-- 收集真实截图并验证 OCR 候选方案。
+- 已用真实资源数字 ROI 验证 Tesseract 日文单行 OCR；包已固定为支持 `.NET 7` 依赖链的 `TesseractOCR` 5.3.5，等待真实 ROI 人工回归降级后的识别行为。
 - 验证 DPI、窗口尺寸和坐标换算。
 
 ### 阶段 1：最小识别闭环

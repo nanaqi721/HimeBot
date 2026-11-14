@@ -7,6 +7,7 @@ using HimeBot.Platform.Windows.Launching;
 using HimeBot.Platform.Windows.ScreenCapture;
 using HimeBot.Platform.Windows.Windowing;
 using HimeBot.Vision.ImageProcessing;
+using HimeBot.Vision.Ocr;
 using System.Windows;
 
 namespace HimeBot.App;
@@ -33,6 +34,8 @@ public partial class App : Application
 
         var imagePreprocessor = new ImagePreprocessor();
 
+        var textRecognizer = new TesseractTextRecognizer();
+
         var mainViewModel = new MainViewModel(
             gameLaunchTargetPicker,
             gameLauncher,
@@ -40,7 +43,8 @@ public partial class App : Application
             gameScreenShotCapture,
             sendInputAdapter,
             gameWindowController,
-            imagePreprocessor);
+            imagePreprocessor,
+            textRecognizer);
         var mainWindow = new MainWindow
         {
             DataContext = mainViewModel

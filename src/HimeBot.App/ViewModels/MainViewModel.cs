@@ -4,6 +4,7 @@ using HimeBot.App.FilePicking;
 using HimeBot.Core.Launching;
 using HimeBot.Core.Ports;
 using HimeBot.Core.Windowing;
+using HimeBot.Game.Koihime.Perception;
 using HimeBot.Platform.Windows.Input;
 using HimeBot.Platform.Windows.ScreenCapture;
 using HimeBot.Platform.Windows.Windowing;
@@ -28,6 +29,7 @@ public sealed class MainViewModel : ObservableObject
     private readonly WindowsGameWindowController _gameWindowController;
     private readonly ImagePreprocessor _imagePreprocessor;
     private readonly TesseractTextRecognizer _textRecognizer;
+    private readonly GrainStockParser _grainStockParser;
 
     private string _selectedLaunchTargetPath = string.Empty;
     private string _statusMessage = "请选择 DMM 游戏快捷方式。";
@@ -44,7 +46,8 @@ public sealed class MainViewModel : ObservableObject
         SendInputAdapter sendInputAdapter,
         WindowsGameWindowController gameWindowController,
         ImagePreprocessor imagePreprocessor,
-        TesseractTextRecognizer textRecognizer)
+        TesseractTextRecognizer textRecognizer,
+        GrainStockParser grainStockParser)
     {
         _gameLaunchTargetPicker = gameLaunchTargetPicker;
         _gameLauncher = gameLauncher;
@@ -54,6 +57,7 @@ public sealed class MainViewModel : ObservableObject
         _gameWindowController = gameWindowController;
         _imagePreprocessor = imagePreprocessor;
         _textRecognizer = textRecognizer;
+        _grainStockParser = grainStockParser;
 
         ClientSizeOption defaultClientSize =
             new ClientSizeOption(
@@ -775,9 +779,28 @@ public sealed class MainViewModel : ObservableObject
                 ? "（未识别到文字）"
                 : result.RawText.ReplaceLineEndings(" ");
 
+        GrainStockParseResult parseResult =
+            _grainStockParser.Parse(result.RawText);
+
+        if (!parseResult.IsSuccess ||
+            parseResult.Stock is null)
+        {
+            StatusMessage =
+                $"{result.Message} " +
+                $"原始文字：{displayText}；" +
+                $"平均置信度：{result.MeanConfidence:P1}；" +
+                $"粮食解析失败：{parseResult.Message} " +
+                $"规范化文字：{parseResult.NormalizedText}。";
+
+            return;
+        }
+
         StatusMessage =
             $"{result.Message} " +
             $"原始文字：{displayText}；" +
-            $"平均置信度：{result.MeanConfidence:P1}。";
+            $"平均置信度：{result.MeanConfidence:P1}；" +
+            $"规范化文字：{parseResult.NormalizedText}；" +
+            $"当前粮食：{parseResult.Stock.CurrentAmount}万；" +
+            $"容量：{parseResult.Stock.Capacity}万。";
     }
 }

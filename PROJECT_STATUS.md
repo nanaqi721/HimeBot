@@ -6,16 +6,17 @@
 
 ## 当前里程碑
 
-根解决方案已经完成并人工验证第一条最小 OCR 纵向链路：
+根解决方案已经完成第一条从截图到粮食状态的最小纵向链路：
 
 ```text
 Windows Graphics Capture 客户区截图
     → 按固定参考坐标裁剪资源数字 ROI
     → Tesseract 日文单行识别
-    → WPF 状态栏显示 OCR 原文和平均置信度
+    → Koihime 模块规范化并解析粮食文字
+    → WPF 状态栏显示 OCR 证据与粮食数值
 ```
 
-真实运行时，彩色 ROI 已正确识别顶部资源文本 `236万/454万`（Tesseract 原文可能在 `/` 后保留一个空格）。引擎返回的平均置信度为 `0.9`，其含义是比例 `90%`，不是百分制的 `0.9%`。
+真实运行时，彩色 ROI 已正确识别顶部粮食文本 `236万/454万`（Tesseract 原文可能在 `/` 后保留一个空格）。用户已确认降级到 `TesseractOCR` 5.3.5 后 OCR 仍能运行成功。粮食解析器和 WPF 展示已完成构建，等待使用真实 ROI 人工确认最终显示。
 
 ## 已完成功能
 
@@ -60,6 +61,20 @@ Height = 48
 - `MainViewModel` 保存最近一次成功 ROI 路径；保存新截图或重新裁剪时清除旧 ROI 状态，避免识别过期图片。
 - WPF 已增加“识别资源文字”按钮，按钮只有在 ROI 裁剪成功后才可用。
 
+### 本窗口完成的粮食文字解析
+
+- 首次创建 `HimeBot.Game.Koihime`，并建立 `HimeBot.App` 到游戏模块的单向项目引用；游戏模块当前不引用 Core、Vision 或 WPF。
+- `GrainStock` 使用 `int` 保存当前粮食数值和容量，二者的固定单位都是“万”。
+- `GrainStockParser`：
+  - 使用 Unicode Form KC 将全角数字和全角斜杠转换为兼容形式；
+  - 移除空格、换行等 Unicode 空白；
+  - 要求文字严格包含一个 `/`，且两边都是“非负整数 + 万”；
+  - 只移除单位，不把数值乘以 `10,000`；
+  - 按游戏实际规则允许当前粮食数值大于容量。
+- `GrainStockParseResult` 在成功时返回规范化文字和 `GrainStock`，失败时保留规范化文字、原因，并令 `Stock` 为 `null`。
+- 已用仓库外临时控制台程序完成 `19` 个解析检查，覆盖普通文字、空白、全角字符、当前值大于容量、缺单位、多分隔符、符号、字母和 `int` 溢出；临时文件已经删除。
+- `App.xaml.cs` 在组合根创建并注入 `GrainStockParser`；现有“识别资源文字”命令在 OCR 成功后自动解析，不新增测试按钮。
+
 ## 本窗口发现的问题与结论
 
 | 事项 | 现象 | 结论或当前处理 |
@@ -68,7 +83,9 @@ Height = 48
 | 大量按钮坐标如何取得 | 画图工具可人工测量，但维护成本较高 | 当前先使用固定 `1280 × 720` 参考坐标；WPF 截图坐标选择器属于效率工具，已明确延期，不阻塞 OCR 主线 |
 | OCR 显示为 `0.9%` | 文字完全正确，但界面置信度看似极低 | 真实 ROI 探针确认 `MeanConfidence = 0.9`；包源码会把 Tesseract 的 `0～100` 值除以 `100`，所以实际是 `90%` |
 | 置信度单位错误 | `MainViewModel` 原来使用 `{MeanConfidence:F1}%` | 当前代码已改为 `{MeanConfidence:P1}`，由 .NET 百分比格式自动换算；还需下一窗口人工确认界面显示 `90.0%` |
-| OCR 包的 .NET 7 支持警告 | `TesseractOCR 5.5.2` 依赖 `Microsoft.Extensions.Logging.Abstractions 10.0.3`，又传递引入不正式支持 `net7.0` 的 10.0.3 系列依赖 | 已固定回 `TesseractOCR 5.3.5`；其日志抽象依赖为 `7.0.1`，现有 OCR API 无需改写，完整构建中相关支持警告已消失。由于原生 Tesseract 版本也从 5.5.1 变为 5.3.1，仍需用真实 ROI 人工回归识别结果 |
+| OCR 包的 .NET 7 支持警告 | `TesseractOCR 5.5.2` 依赖 `Microsoft.Extensions.Logging.Abstractions 10.0.3`，又传递引入不正式支持 `net7.0` 的 10.0.3 系列依赖 | 已固定回 `TesseractOCR 5.3.5`；其日志抽象依赖为 `7.0.1`，相关构建警告已消失，用户已确认降级后的 OCR 链路运行成功 |
+| “万”是否换算 | OCR 识别结果是 `236万/454万` | “万”是固定显示单位，结构化数值保留为 `236` 和 `454`，不乘以 `10,000` |
+| 当前粮食能否大于容量 | 游戏内允许出现当前值大于容量 | 这是有效状态，解析器不校验 `CurrentAmount <= Capacity` |
 | OpenCvSharp 分析器警告 | 分析器使用编译器 4.14，而 .NET 7 SDK 使用编译器 4.7 | 当前不影响构建和运行；最终确定 OpenCvSharp 兼容版本时处理 |
 | 测试缺口 | 当前没有测试项目 | 用户已经决定暂缓 xUnit；`dotnet test` 只完成还原/构建，没有执行测试用例 |
 
@@ -86,7 +103,8 @@ dotnet test HimeBot.sln --configuration Debug --property:Platform=x64
 - 构建成功，`0` 个错误、`2` 个警告。
 - `TesseractOCR` 间接依赖的 .NET 7 支持警告已经消失；当前 `2` 个警告均为 OpenCvSharp `CS9057`。
 - 测试命令退出码为 `0`，但解决方案中没有测试项目。
-- 用户已人工运行 OCR，识别文本正确；`P1` 百分比显示修正尚待人工复验。
+- 临时解析器检查共 `19` 项，全部通过；这些检查不在仓库中，后续修改不会自动回归。
+- 用户已人工运行降级后的 OCR；粮食解析接入后的状态栏显示尚待人工复验。
 
 ## 当前未提交工作树
 
@@ -95,34 +113,31 @@ dotnet test HimeBot.sln --configuration Debug --property:Platform=x64
 ```text
  M PROJECT_STATUS.md
  M docs/project-structure.md
+ M HimeBot.sln
  M src/HimeBot.App/App.xaml.cs
- M src/HimeBot.App/MainWindow.xaml
+ M src/HimeBot.App/HimeBot.App.csproj
  M src/HimeBot.App/ViewModels/MainViewModel.cs
- M src/HimeBot.Vision/HimeBot.Vision.csproj
-?? src/HimeBot.Vision/Ocr/
-?? src/HimeBot.Vision/tessdata/
+?? src/HimeBot.Game.Koihime/
 ```
-
-`tessdata/jpn.traineddata` 是约 2.36 MiB 的二进制语言模型。不要删除或用文本方式改写。
 
 ## 下一窗口恢复顺序
 
 1. 阅读 `AGENTS.md`、本文档和 `docs/project-structure.md`。
 2. 执行 `git status --short`，确认上述未提交文件仍在；保留用户改动。
-3. 构建 x64 Debug，确认 `tessdata/jpn.traineddata` 仍复制到 `HimeBot.App` 输出目录。
+3. 构建 x64 Debug，确认解决方案中的五个项目都能成功编译。
 4. 运行现有链路：保存截图 → 裁剪资源数字 → 识别资源文字。
-5. 确认状态栏显示约 `90.0%`，而不是 `0.9%`；这是当前最小人工完成标准。
-6. 使用同一张真实 ROI 人工复验 `TesseractOCR 5.3.5` 的识别文字和置信度，确认包降级没有造成行为回归。
+5. 确认状态栏同时显示 OCR 原文、约 `90.0%` 的置信度、规范化文字、当前粮食与容量。
+6. 对 `236万/ 454万`，确认结构化数值显示为 `236万` 与 `454万`，没有换算成实际个数。
 
 ## 下一条主线
 
-OCR 包降级后的真实 ROI 行为和百分比显示确认后，再实现资源文本的规范化与解析：
+人工验证新接入的粮食解析显示：
 
 ```text
 OCR 原文："236万/ 454万"
     → 去除空白并校验格式
-    → 当前值：2,360,000
-    → 最大值：4,540,000
+    → 当前粮食：236万
+    → 容量：454万
 ```
 
-该规则包含游戏文本含义，应先讨论是否创建 `HimeBot.Game.Koihime`，将规范化与数值解析放入游戏模块；`HimeBot.Vision` 继续只返回 OCR 原文和置信度。暂时不创建通用坐标选择器、测试项目或自动点击任务。
+确认真实 ROI 的最终显示后，再讨论是否将 `ResourceCounterRegionX` 等临时诊断名称统一为粮食领域术语，并决定下一条最小识别闭环；暂时不创建通用坐标选择器、测试项目或自动点击任务。

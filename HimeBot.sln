@@ -16,6 +16,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "HimeBot.Platform.Windows", 
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "HimeBot.Vision", "src\HimeBot.Vision\HimeBot.Vision.csproj", "{3252D513-25BC-4484-9C64-AA5AF131F13C}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HimeBot.Game.Koihime", "src\HimeBot.Game.Koihime\HimeBot.Game.Koihime.csproj", "{B74D6C4D-F543-41A5-AAEF-883267C0041A}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -56,6 +58,14 @@ Global
 		{3252D513-25BC-4484-9C64-AA5AF131F13C}.Release|Any CPU.Build.0 = Release|x64
 		{3252D513-25BC-4484-9C64-AA5AF131F13C}.Release|x64.ActiveCfg = Release|x64
 		{3252D513-25BC-4484-9C64-AA5AF131F13C}.Release|x64.Build.0 = Release|x64
+		{B74D6C4D-F543-41A5-AAEF-883267C0041A}.Debug|Any CPU.ActiveCfg = Debug|x64
+		{B74D6C4D-F543-41A5-AAEF-883267C0041A}.Debug|Any CPU.Build.0 = Debug|x64
+		{B74D6C4D-F543-41A5-AAEF-883267C0041A}.Debug|x64.ActiveCfg = Debug|x64
+		{B74D6C4D-F543-41A5-AAEF-883267C0041A}.Debug|x64.Build.0 = Debug|x64
+		{B74D6C4D-F543-41A5-AAEF-883267C0041A}.Release|Any CPU.ActiveCfg = Release|x64
+		{B74D6C4D-F543-41A5-AAEF-883267C0041A}.Release|Any CPU.Build.0 = Release|x64
+		{B74D6C4D-F543-41A5-AAEF-883267C0041A}.Release|x64.ActiveCfg = Release|x64
+		{B74D6C4D-F543-41A5-AAEF-883267C0041A}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

@@ -2,6 +2,7 @@
 
 using HimeBot.App.FilePicking;
 using HimeBot.App.ViewModels;
+using HimeBot.Game.Koihime.Perception;
 using HimeBot.Platform.Windows.Input;
 using HimeBot.Platform.Windows.Launching;
 using HimeBot.Platform.Windows.ScreenCapture;
@@ -36,6 +37,8 @@ public partial class App : Application
 
         var textRecognizer = new TesseractTextRecognizer();
 
+        var grainStockParser = new GrainStockParser();
+
         var mainViewModel = new MainViewModel(
             gameLaunchTargetPicker,
             gameLauncher,
@@ -44,7 +47,8 @@ public partial class App : Application
             sendInputAdapter,
             gameWindowController,
             imagePreprocessor,
-            textRecognizer);
+            textRecognizer,
+            grainStockParser);
         var mainWindow = new MainWindow
         {
             DataContext = mainViewModel

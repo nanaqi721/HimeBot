@@ -79,8 +79,9 @@ HimeBot/
 
 用户实际动手开发的解决方案目前位于仓库根目录的 `HimeBot.sln` 和 `src/`；`Tutorial/` 继续作为智能体生成参考实现的独立工作区。实际项目当前包含：
 
-- `HimeBot.App`：WPF 程序入口、启动目标选择、窗口与截图诊断命令、OCR 诊断命令和状态显示。
+- `HimeBot.App`：WPF 程序入口、启动目标选择、窗口与截图诊断命令、OCR 与粮食解析诊断命令和状态显示。
 - `HimeBot.Core`：游戏启动与窗口定位的结果模型和外部边界接口。
+- `HimeBot.Game.Koihime`：恋姬大战专用的粮食库存模型、OCR 文字规范化与数值解析。
 - `HimeBot.Platform.Windows`：DMM Shell 启动、Windows 进程窗口定位、客户区尺寸读取与调整、单帧截图和 `SendInput` 鼠标输入。
 - `HimeBot.Vision`：使用 OpenCvSharp 生成灰度图、Otsu 二值图和矩形 ROI 副本，并使用 Tesseract 识别日文单行文字。
 
@@ -88,6 +89,7 @@ HimeBot/
 
 ```text
 HimeBot.App
+├─> HimeBot.Game.Koihime
 ├─> HimeBot.Platform.Windows
 ├─> HimeBot.Vision
 └─> HimeBot.Core
@@ -111,10 +113,11 @@ HimeBot.Platform.Windows ──> HimeBot.Core
 | 客户区坐标鼠标移动与点击 | `src/HimeBot.Platform.Windows/Input/` | `SendInput` 移动和左键点击均已实现并人工验证 |
 | 灰度图、Otsu 二值图与矩形 ROI 裁剪 | `src/HimeBot.Vision/ImageProcessing/` | 已通过 MVVM 命令接入 WPF；资源数字 ROI 已人工验证 |
 | 日文单行 OCR | `src/HimeBot.Vision/Ocr/`、`src/HimeBot.Vision/tessdata/` | 已接入 WPF；真实资源 ROI 已正确识别 `236万/454万` |
+| 粮食文字规范化与数值解析 | `src/HimeBot.Game.Koihime/Domain/`、`src/HimeBot.Game.Koihime/Perception/` | 已接入现有 OCR 命令并完成构建；真实 ROI 的解析显示待人工验证 |
 
 `ScreenCapture/ClientCropRectangleCalculator.cs` 是为后续学习测试保留的内部纯计算类。它目前尚未接入生产截图路径，不代表现有裁剪行为已经重构；`WindowsGameScreenshotCapture` 仍使用自身的 `TryGetClientCropRectangle` 完成 Win32 查询、坐标计算和越界校验。
 
-`HimeBot.Game.Koihime` 和测试项目将在对应职责第一次需要时再创建。`HimeBot.Vision` 已因图像预处理职责创建；当前尚未需要 Core 类型，因此暂时没有添加到 `HimeBot.Core` 的项目引用。
+`HimeBot.Game.Koihime` 已在第一次需要游戏专用文字含义时创建。当前游戏模块只包含粮食库存模型和纯文字解析，不需要 Core 类型，因此暂时不引用 `HimeBot.Core`；测试项目仍未创建。
 
 ## 4. 项目引用方向
 
@@ -201,6 +204,21 @@ HimeBot.Core/
 
 恋姬大战的深模块，包含游戏状态、画面理解、任务状态机和语义操作。
 
+当前实际结构：
+
+```text
+HimeBot.Game.Koihime/
+├─ Domain/
+│  └─ GrainStock.cs
+└─ Perception/
+   ├─ GrainStockParseResult.cs
+   └─ GrainStockParser.cs
+```
+
+`GrainStockParser` 对 OCR 原文执行 Unicode 兼容规范化、移除空白，并严格解析“当前粮食/容量”两段以“万”为单位的非负 `int`。`万`只作为固定显示单位，不换算为实际个数；游戏允许当前粮食数值大于容量，因此解析器不施加大小关系约束。App 在现有 OCR 命令中调用这一解析器并显示原文、置信度、规范化文字与结构化数值。当前只有一个确定性解析实现，不增加 interface。
+
+后续目标结构：
+
 ```text
 HimeBot.Game.Koihime/
 ├─ KoihimeAutomation.cs
@@ -213,7 +231,7 @@ HimeBot.Game.Koihime/
 ├─ Perception/
 │  ├─ KoihimeObserver.cs
 │  ├─ SceneRecognizer.cs
-│  └─ TextNormalizer.cs
+│  └─ GrainStockParser.cs
 ├─ Interaction/
 │  ├─ IntentExecutor.cs
 │  ├─ TargetLocator.cs
@@ -433,7 +451,7 @@ Tutorial/tests/HimeBot.Game.Koihime.Tests/
 
 - 验证游戏窗口能否稳定截图且不会黑屏。
 - 验证 `SendInput` 是否能被游戏接受。
-- 已用真实资源数字 ROI 验证 Tesseract 日文单行 OCR；包已固定为支持 `.NET 7` 依赖链的 `TesseractOCR` 5.3.5，等待真实 ROI 人工回归降级后的识别行为。
+- 已用真实资源数字 ROI 验证 Tesseract 日文单行 OCR；包已固定为支持 `.NET 7` 依赖链的 `TesseractOCR` 5.3.5，用户已确认降级后的 OCR 链路运行成功，粮食解析显示待人工验证。
 - 验证 DPI、窗口尺寸和坐标换算。
 
 ### 阶段 1：最小识别闭环

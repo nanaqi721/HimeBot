@@ -76,9 +76,19 @@
             HorizontalAlignment="Right"
             Orientation="Horizontal">
 
-            <Button Padding="16,6"
+            <Button Margin="0,0,8,0"
+                    Padding="16,6"
                     Content="生成灰度图"
                     Command="{Binding CreateGrayscaleCopyCommand}" />
+
+            <Button Margin="0,0,8,0"
+                    Padding="16,6"
+                    Content="生成二值图"
+                    Command="{Binding CreateBinaryCopyCommand}" />
+
+            <Button Padding="16,6"
+                    Content="裁剪资源数字"
+                    Command="{Binding CreateOcrRegionCopyCommand}" />
 
         </StackPanel>
 

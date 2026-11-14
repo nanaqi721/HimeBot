@@ -25,7 +25,7 @@ HimeBot 是一个基于 C# 和 WPF 的游戏 OCR 自动化程序。初期面向�
 - Direct3D 11 绑定：`Vortice.Direct3D11` 3.5.0
 - 依赖注入、配置和日志：`Microsoft.Extensions.*`
 - 测试框架：xUnit
-- 图像处理候选：OpenCvSharp
+- 图像处理：`OpenCvSharp4.Windows` 4.13.0.20261107
 - OCR 引擎：通过 interface 隔离，待真实截图验证后确定
 
 OCR 和图像处理库包含原生依赖，因此初期统一使用 x64，不使用 AnyCPU。
@@ -80,12 +80,14 @@ HimeBot/
 - `HimeBot.App`：WPF 程序入口、启动目标选择、启动命令、窗口查找命令和状态显示。
 - `HimeBot.Core`：游戏启动与窗口定位的结果模型和外部边界接口。
 - `HimeBot.Platform.Windows`：DMM Shell 启动、Windows 进程窗口定位、客户区尺寸读取与调整、单帧截图和 `SendInput` 鼠标输入。
+- `HimeBot.Vision`：使用 OpenCvSharp 生成灰度图、Otsu 二值图和矩形 ROI 副本；OCR 引擎尚未选择。
 
 当前引用方向为：
 
 ```text
 HimeBot.App
 ├─> HimeBot.Platform.Windows
+├─> HimeBot.Vision
 └─> HimeBot.Core
 
 HimeBot.Platform.Windows ──> HimeBot.Core
@@ -105,10 +107,11 @@ HimeBot.Platform.Windows ──> HimeBot.Core
 | Windows 游戏窗口居中 | `src/HimeBot.Platform.Windows/Windowing/`、`src/HimeBot.Platform.Windows/Native/` | 待办：移动到当前显示器工作区中心，尚未实现 |
 | 单帧截图与 Windows Graphics Capture | `src/HimeBot.Platform.Windows/ScreenCapture/` | WGC 遮挡隔离与客户区动态裁剪均已人工运行验证 |
 | 客户区坐标鼠标移动与点击 | `src/HimeBot.Platform.Windows/Input/` | `SendInput` 移动和左键点击均已实现并人工验证 |
+| 灰度图、Otsu 二值图与矩形 ROI 裁剪 | `src/HimeBot.Vision/ImageProcessing/` | 已通过 MVVM 命令接入 WPF；灰度和二值图已人工验证，资源数字 ROI 待人工验证 |
 
 `ScreenCapture/ClientCropRectangleCalculator.cs` 是为后续学习测试保留的内部纯计算类。它目前尚未接入生产截图路径，不代表现有裁剪行为已经重构；`WindowsGameScreenshotCapture` 仍使用自身的 `TryGetClientCropRectangle` 完成 Win32 查询、坐标计算和越界校验。
 
-`HimeBot.Game.Koihime`、`HimeBot.Vision` 和测试项目将在对应职责第一次需要时再创建。
+`HimeBot.Game.Koihime` 和测试项目将在对应职责第一次需要时再创建。`HimeBot.Vision` 已因图像预处理职责创建；当前尚未需要 Core 类型，因此暂时没有添加到 `HimeBot.Core` 的项目引用。
 
 ## 4. 项目引用方向
 
@@ -309,18 +312,18 @@ WGC 选型、Direct3D/WinRT 桥接和客户区裁剪约束见 `docs/decisions/00
 
 负责与具体游戏无关的图像处理、OCR 调用和模板匹配。
 
+当前实际结构：
+
 ```text
 HimeBot.Vision/
-├─ Ocr/
-│  ├─ OcrTextRecognizer.cs
-│  └─ OcrEngineAdapter.cs
-├─ Processing/
-│  ├─ GrayscaleProcessor.cs
-│  ├─ ThresholdProcessor.cs
-│  └─ ScaleProcessor.cs
-└─ Matching/
-   └─ OpenCvTemplateMatcher.cs
+└─ ImageProcessing/
+   ├─ ImagePreprocessor.cs
+   └─ ImageProcessingResult.cs
 ```
+
+`ImagePreprocessor` 当前对外提供异步灰度副本、Otsu 二值副本和矩形 ROI 副本操作，隐藏 OpenCV 原生库加载、路径与区域边界检查、图片读取、输出目录创建、资源释放和异常转换。App 通过 MVVM 命令处理最近一次成功截图，并将诊断图片保存到 `%LocalAppData%/HimeBot/processed/`。当前资源数字诊断按钮使用 `1280 × 720` 参考截图上的临时坐标；区域稳定后再移入 Koihime 专用配置。
+
+后续在真实 OCR 区域和 OCR 引擎确定后，再按需创建 `Ocr/` 与 `Matching/`，不提前生成空目录或接口。
 
 OCR adapter 只返回候选文字、位置和置信度。文字纠错、数值范围和游戏规则校验属于 `HimeBot.Game.Koihime`。
 

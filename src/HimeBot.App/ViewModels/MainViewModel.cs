@@ -14,6 +14,11 @@ namespace HimeBot.App.ViewModels;
 
 public sealed class MainViewModel : ObservableObject
 {
+    private const int ResourceCounterRegionX = 540;
+    private const int ResourceCounterRegionY = 12;
+    private const int ResourceCounterRegionWidth = 195;
+    private const int ResourceCounterRegionHeight = 48;
+
     private readonly IGameLaunchTargetPicker _gameLaunchTargetPicker;
     private readonly IGameLauncher _gameLauncher;
     private readonly IGameWindowLocator _gameWindowLocator;
@@ -110,7 +115,17 @@ public sealed class MainViewModel : ObservableObject
         CreateGrayscaleCopyCommand =
             new AsyncRelayCommand(
                 CreateGrayscaleCopyAsync,
-                CanCreateGrayscaleCopy);
+                CanCreateProcessedCopy);
+
+        CreateBinaryCopyCommand =
+            new AsyncRelayCommand(
+                CreateBinaryCopyAsync,
+                CanCreateProcessedCopy);
+
+        CreateOcrRegionCopyCommand =
+            new AsyncRelayCommand(
+                CreateOcrRegionCopyAsync,
+                CanCreateProcessedCopy);
     }
 
     public string SelectedLaunchTargetPath
@@ -174,6 +189,10 @@ public sealed class MainViewModel : ObservableObject
     public IRelayCommand SetGameWindowClientSizeCommand { get; }
 
     public IAsyncRelayCommand CreateGrayscaleCopyCommand { get; }
+
+    public IAsyncRelayCommand CreateBinaryCopyCommand { get; }
+
+    public IAsyncRelayCommand CreateOcrRegionCopyCommand { get; }
 
     private void SelectLaunchTarget()
     {
@@ -541,9 +560,15 @@ public sealed class MainViewModel : ObservableObject
 
         CreateGrayscaleCopyCommand
             .NotifyCanExecuteChanged();
+
+        CreateBinaryCopyCommand
+            .NotifyCanExecuteChanged();
+
+        CreateOcrRegionCopyCommand
+            .NotifyCanExecuteChanged();
     }
 
-    private bool CanCreateGrayscaleCopy()
+    private bool CanCreateProcessedCopy()
     {
         return !string.IsNullOrWhiteSpace(
             _latestCapturePath);
@@ -584,6 +609,90 @@ public sealed class MainViewModel : ObservableObject
                 .CreateGrayscaleCopyAsync(
                     sourcePath,
                     outputPath,
+                    cancellationToken);
+
+        StatusMessage = result.Message;
+    }
+
+    private async Task CreateBinaryCopyAsync(
+        CancellationToken cancellationToken)
+    {
+        string? sourcePath =
+            _latestCapturePath;
+
+        if (string.IsNullOrWhiteSpace(sourcePath))
+        {
+            StatusMessage =
+                "请先保存一张客户区截图。";
+
+            return;
+        }
+
+        string outputDirectory =
+            Path.Combine(
+                Environment.GetFolderPath(
+                    Environment.SpecialFolder.LocalApplicationData),
+                "HimeBot",
+                "processed");
+
+        string outputFileName =
+            $"{Path.GetFileNameWithoutExtension(sourcePath)}" +
+            "-binary.png";
+
+        string outputPath =
+            Path.Combine(
+                outputDirectory,
+                outputFileName);
+
+        ImageProcessingResult result =
+            await _imagePreprocessor
+                .CreateBinaryCopyAsync(
+                    sourcePath,
+                    outputPath,
+                    cancellationToken);
+
+        StatusMessage = result.Message;
+    }
+
+    private async Task CreateOcrRegionCopyAsync(
+        CancellationToken cancellationToken)
+    {
+        string? sourcePath =
+            _latestCapturePath;
+
+        if (string.IsNullOrWhiteSpace(sourcePath))
+        {
+            StatusMessage =
+                "请先保存一张客户区截图。";
+
+            return;
+        }
+
+        string outputDirectory =
+            Path.Combine(
+                Environment.GetFolderPath(
+                    Environment.SpecialFolder.LocalApplicationData),
+                "HimeBot",
+                "processed");
+
+        string outputFileName =
+            $"{Path.GetFileNameWithoutExtension(sourcePath)}" +
+            "-resource-roi.png";
+
+        string outputPath =
+            Path.Combine(
+                outputDirectory,
+                outputFileName);
+
+        ImageProcessingResult result =
+            await _imagePreprocessor
+                .CreateRegionCopyAsync(
+                    sourcePath,
+                    outputPath,
+                    ResourceCounterRegionX,
+                    ResourceCounterRegionY,
+                    ResourceCounterRegionWidth,
+                    ResourceCounterRegionHeight,
                     cancellationToken);
 
         StatusMessage = result.Message;

@@ -19,6 +19,7 @@ public sealed class HomeSceneRecognizer
         int templateX,
         int templateY)
     {
+        // 排除NAN和Infinity情况
         if (!double.IsFinite(templateScore))
         {
             return new SceneRecognitionResult(

@@ -117,7 +117,7 @@ HimeBot.Platform.Windows ──> HimeBot.Core
 | 分场景观察 | `src/HimeBot.App/Observation/` | `KoihimeFrameCapture` 统一生成并校验 `1280 × 720` 截图；首页、任务面板和奖励弹窗分别由专用观察者解释，避免单个总观察者持续膨胀 |
 | 打开任务面板动作编排 | `src/HimeBot.App/Interaction/` | 点击前使用首页观察者确认 `Home`；点击后按 `200 ms` 间隔调用任务面板观察者，最长等待 `3 s`，仅在确认面板后成功 |
 | 领取任务奖励动作编排 | `src/HimeBot.App/Interaction/` | 只在任务面板奖励状态为 `Available` 时点击“一括完了”；依次验证领取弹窗、关闭弹窗和最终 `Unavailable` 状态，`Unknown`、观察失败或超时均安全停止 |
-| 从任务面板返回首页 | `src/HimeBot.App/Observation/Mission/`、`src/HimeBot.App/Interaction/` | 裁剪左上角搜索区并确认返回按钮；同时要求当前为任务面板，点击后最长等待 `3 s`，只有首页观察成功才报告返回完成 |
+| 从任务面板返回首页 | `src/HimeBot.App/Observation/Mission/`、`src/HimeBot.App/Interaction/` | 裁剪左上角搜索区并确认返回按钮；同时要求当前为任务面板，点击后最长等待 `3 s`，只有首页观察成功才报告返回完成；已完成人工运行验证 |
 | 日文单行 OCR | `src/HimeBot.Vision/Ocr/`、`src/HimeBot.Vision/tessdata/` | 已接入 WPF；真实资源 ROI 已正确识别 `236万/454万` |
 | 粮食文字规范化与数值解析 | `src/HimeBot.Game.Koihime/Domain/`、`src/HimeBot.Game.Koihime/Perception/` | 已接入现有 OCR 命令并完成构建；真实 ROI 的解析显示待人工验证 |
 

@@ -93,6 +93,7 @@ public sealed class TemplateMatcher
 
             using var scoreMap = new Mat();
 
+            // 使用 CCoeffNormed 的主要优点是：匹配结果容易理解为“相似分数”，而且对统一的亮度偏移有一定容忍度
             Cv2.MatchTemplate(
                 sourceImage,
                 templateImage,

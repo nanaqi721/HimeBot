@@ -74,6 +74,8 @@ public sealed class GrainStockParser
             return string.Empty;
         }
 
+        // Normalize：统一 OCR 文字的 Unicode 表示形式
+        // FormKC：表示“兼容性分解后再组合”，
         string compatibilityNormalized =
             rawText.Normalize(NormalizationForm.FormKC);
 
@@ -112,7 +114,9 @@ public sealed class GrainStockParser
 
         if (!int.TryParse(
                 digits,
+                // 只接收纯数字格式
                 NumberStyles.None,
+                // 不随用户系统语言变化的固定文化规则
                 CultureInfo.InvariantCulture,
                 out value))
         {

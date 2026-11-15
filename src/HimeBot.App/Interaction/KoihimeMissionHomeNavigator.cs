@@ -13,9 +13,10 @@ public sealed class KoihimeMissionHomeNavigator
     private const int BackButtonClientX = 53;
     private const int BackButtonClientY = 50;
 
+    // 验证超时时间
     private static readonly TimeSpan VerificationTimeout =
         TimeSpan.FromSeconds(3);
-
+    // 验证间隔时间
     private static readonly TimeSpan VerificationInterval =
         TimeSpan.FromMilliseconds(200);
 

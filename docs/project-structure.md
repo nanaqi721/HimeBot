@@ -79,9 +79,9 @@ HimeBot/
 
 用户实际动手开发的解决方案目前位于仓库根目录的 `HimeBot.sln` 和 `src/`；`Tutorial/` 继续作为智能体生成参考实现的独立工作区。实际项目当前包含：
 
-- `HimeBot.App`：WPF 程序入口、启动目标选择、窗口与截图诊断命令、OCR、粮食解析、首页场景识别诊断命令和状态显示。
+- `HimeBot.App`：WPF 程序入口、启动目标选择、窗口与截图诊断命令、OCR、粮食解析、首页与任务面板场景观察编排，以及确认首页后点击任务入口的动作编排。
 - `HimeBot.Core`：游戏启动与窗口定位的结果模型和外部边界接口。
-- `HimeBot.Game.Koihime`：恋姬大战专用的粮食库存模型、OCR 文字规范化与数值解析，以及首页场景含义与判定规则。
+- `HimeBot.Game.Koihime`：恋姬大战专用的粮食库存模型、OCR 文字规范化与数值解析，以及首页和任务面板的场景含义与判定规则。
 - `HimeBot.Platform.Windows`：DMM Shell 启动、Windows 进程窗口定位、客户区尺寸读取与调整、单帧截图和 `SendInput` 鼠标输入。
 - `HimeBot.Vision`：使用 OpenCvSharp 生成灰度图、Otsu 二值图、矩形 ROI 副本和模板匹配证据，并使用 Tesseract 识别日文单行文字。
 
@@ -112,7 +112,9 @@ HimeBot.Platform.Windows ──> HimeBot.Core
 | 单帧截图与 Windows Graphics Capture | `src/HimeBot.Platform.Windows/ScreenCapture/` | WGC 遮挡隔离与客户区动态裁剪均已人工运行验证 |
 | 客户区坐标鼠标移动与点击 | `src/HimeBot.Platform.Windows/Input/` | `SendInput` 移动和左键点击均已实现并人工验证 |
 | 灰度图、Otsu 二值图与矩形 ROI 裁剪 | `src/HimeBot.Vision/ImageProcessing/` | 已通过 MVVM 命令接入 WPF；资源数字 ROI 已人工验证 |
-| OpenCV 模板匹配 | `src/HimeBot.Vision/Matching/`、`assets/koihime/templates/` | 已接入 WPF 诊断命令并完成构建；首页与非首页分数待人工采集 |
+| OpenCV 模板匹配 | `src/HimeBot.Vision/Matching/`、`assets/koihime/templates/` | 首页模板诊断已人工验证；任务入口奖励状态样本仅保留为实验记录；新增 `310 × 74` 的任务面板固定标题模板 |
+| 一次场景观察编排 | `src/HimeBot.App/Observation/` | 已组合 WGC 截图、尺寸校验、首页与任务面板判定，并安全合并为 `Home/MissionPanel/Unknown`；对调用方只返回执行状态、最终场景、说明与截图路径 |
+| 打开任务面板动作编排 | `src/HimeBot.App/Interaction/` | 每次点击前重新观察，仅在 `Home` 时点击客户区固定坐标 `(1235, 565)`；点击后按 `200 ms` 间隔观察，最长等待 `3 s`，仅在出现 `MissionPanel` 时成功 |
 | 日文单行 OCR | `src/HimeBot.Vision/Ocr/`、`src/HimeBot.Vision/tessdata/` | 已接入 WPF；真实资源 ROI 已正确识别 `236万/454万` |
 | 粮食文字规范化与数值解析 | `src/HimeBot.Game.Koihime/Domain/`、`src/HimeBot.Game.Koihime/Perception/` | 已接入现有 OCR 命令并完成构建；真实 ROI 的解析显示待人工验证 |
 
@@ -151,6 +153,12 @@ WPF 程序入口，只负责界面、数据绑定和模块组装。
 HimeBot.App/
 ├─ App.xaml
 ├─ App.xaml.cs
+├─ Observation/
+│  ├─ KoihimeObserver.cs
+│  └─ KoihimeObservationResult.cs
+├─ Interaction/
+│  ├─ KoihimeMissionPanelOpener.cs
+│  └─ MissionPanelOpenResult.cs
 ├─ Views/
 │  ├─ MainWindow.xaml
 │  ├─ DashboardView.xaml
@@ -170,8 +178,12 @@ HimeBot.App/
 
 - View 不直接调用 OCR、截图或鼠标输入。
 - code-behind 只保留纯界面行为。
-- ViewModel 通过自动化模块的 interface 启动和停止任务。
+- ViewModel 通过观察或自动化模块的入口启动工作，不在自身内部编排底层步骤。
 - 自动化核心不依赖 `Window`、`Dispatcher`、`BitmapSource` 等 WPF 类型。
+
+`KoihimeObserver` 当前是 App 内部的一次观察编排模块，对 ViewModel 只暴露 `ObserveAsync`：内部生成截图路径，依次调用 Windows 截图、Vision 的首页与任务面板模板匹配，以及 Koihime 的两个场景识别模块，并返回 `KoihimeObservationResult`。结果只包含 `IsSuccess`、`Scene`、`Message` 和 `ScreenshotPath`；模板分数、位置、截图尺寸与模板尺寸属于实现细节，不暴露给调用方。它只在首页识别器命中时返回 `Home`，只在任务面板识别器命中时返回 `MissionPanel`；两者同时命中或均未命中都返回 `Unknown`。`IsSuccess = false` 时 `Scene` 固定为 `Unknown`，用于区分技术失败与成功执行但无法识别的场景。任务入口的有奖励与无奖励模板不参与运行时匹配。该模块放在 App 是因为当前只有 App 同时引用 Platform、Vision 与 Game；实现本身不引用 WPF 类型。当前只有一个生产实现，也没有确定性观察 adapter，因此暂不创建 `IKoihimeObserver`。当截图和模板匹配出现生产与确定性测试两个 adapters 时，再建立 Core seam，并重新评估该模块的位置。
+
+`KoihimeMissionPanelOpener` 是 App 内部的动作编排模块，对 ViewModel 只暴露 `OpenAsync`：每次调用先通过 `KoihimeObserver` 获取最新场景证据；观察失败或结果为 `Unknown` 时安全停止，只有确认 `Home` 后才调用 Windows 输入 adapter 点击 `1280 × 720` 客户区中的 `(1235, 565)`。点击提交后，该模块每隔 `200 ms` 重新观察一次，并以 `3 s` 为上限等待 `MissionPanel`；只有目标场景出现才返回成功，观察失败或超时均返回失败，调用方取消则终止等待。它把固定坐标、轮询节奏、超时与后置条件隐藏在实现中，ViewModel 只处理命令和结果显示。当前只有一个打开实现，因此不创建 C# `interface`。
 
 ### 5.2 HimeBot.Core
 
@@ -216,12 +228,15 @@ HimeBot.Game.Koihime/
    ├─ GrainStockParseResult.cs
    ├─ GrainStockParser.cs
    ├─ HomeSceneRecognizer.cs
+   ├─ MissionPanelRecognizer.cs
    └─ SceneRecognitionResult.cs
 ```
 
 `GrainStockParser` 对 OCR 原文执行 Unicode 兼容规范化、移除空白，并严格解析“当前粮食/容量”两段以“万”为单位的非负 `int`。`万`只作为固定显示单位，不换算为实际个数；游戏允许当前粮食数值大于容量，因此解析器不施加大小关系约束。App 在现有 OCR 命令中调用这一解析器并显示原文、置信度、规范化文字与结构化数值。当前只有一个确定性解析实现，不增加 interface。
 
 `HomeSceneRecognizer` 根据首页模板的匹配分数与最佳位置生成 `Home/Unknown`。当前 `1280 × 720` 规则要求分数至少为 `0.75`，且位置在 `(948, 535)` 的 X/Y 各 `±5` 像素内。它只接收基础数值，不引用 Vision 或 WPF 类型；App 负责把 `TemplateMatchResult` 中的证据传入该模块并显示结果。当前只有一个确定性识别实现，不增加 interface，`Unknown` 不触发输入操作。
+
+`MissionPanelRecognizer` 根据任务面板固定标题模板的匹配分数与最佳位置生成 `MissionPanel/Unknown`。当前 `1280 × 720` 规则要求分数至少为 `0.90`，且位置在 `(24, 14)` 的 X/Y 各 `±5` 像素内。它与首页识别器一样只接收基础数值，不引用 Vision 或 WPF 类型；当前只有一个确定性实现，因此不增加 interface。
 
 后续目标结构：
 

@@ -6,11 +6,12 @@
         xmlns:local="clr-namespace:HimeBot.App"
         mc:Ignorable="d"
         Title="HimeBot"
-        Height="430"
+        Height="480"
         Width="640">
 
     <Grid Margin="24">
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
@@ -104,6 +105,11 @@
 
             <Button Margin="0,0,8,0"
                     Padding="16,6"
+                    Content="观察当前场景"
+                    Command="{Binding ObserveGameSceneCommand}" />
+
+            <Button Margin="0,0,8,0"
+                    Padding="16,6"
                     Content="匹配首页模板"
                     Command="{Binding MatchHomeTemplateCommand}" />
 
@@ -119,6 +125,17 @@
         </StackPanel>
 
         <StackPanel Grid.Row="5"
+            Margin="0,8,0,0"
+            HorizontalAlignment="Right"
+            Orientation="Horizontal">
+
+            <Button Padding="16,6"
+                    Content="打开任务"
+                    Command="{Binding OpenMissionPanelCommand}" />
+
+        </StackPanel>
+
+        <StackPanel Grid.Row="6"
             Margin="0,12,0,0"
             HorizontalAlignment="Right"
             Orientation="Horizontal">
@@ -139,7 +156,7 @@
 
         </StackPanel>
 
-        <TextBlock Grid.Row="6"
+        <TextBlock Grid.Row="7"
                    Margin="0,16,0,0"
                    Text="{Binding StatusMessage}"
                    TextWrapping="Wrap" />

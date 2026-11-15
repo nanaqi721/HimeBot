@@ -6,5 +6,6 @@
 public enum GameScene
 {
     Unknown,
-    Home
+    Home,
+    MissionPanel
 }

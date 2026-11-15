@@ -20,6 +20,10 @@ Windows Graphics Capture 客户区截图
 
 首页场景识别的诊断链路也已完成接入：App 使用最近一次 `1280 × 720` 客户区截图调用 Vision 的 OpenCV 模板匹配器，再把最佳分数与位置交给 Koihime 的 `HomeSceneRecognizer`，生成 `Home/Unknown` 并显示判断证据。用户已确认接线后的项目能够编译并启动运行；该链路只报告场景，不会触发鼠标输入。
 
+一次场景观察入口已经完成接线：`KoihimeObserver.ObserveAsync` 在一次调用中生成诊断截图、执行 WGC 客户区截图、校验 `1280 × 720`、匹配首页模板并解释为 `Home/Unknown`。WPF 已增加“观察当前场景”按钮；该入口只观察并返回证据，不调用任何输入 adapter。代码已通过 x64 Debug 构建，用户已人工确认入口能够成功运行。
+
+首页任务入口的两种状态样本仍保留在 `assets/koihime/templates/`，但人工审核发现其绝对分数会随首页背景大幅波动，因此运行时不再判断有无奖励。当前动作改为：每次点击前重新观察场景，只有确认 `Home` 后，才在 `1280 × 720` 客户区固定坐标 `(1235, 565)` 点击任务入口；点击后每隔 `200 ms` 重新观察，最长等待 `3 s`，只有确认 `MissionPanel` 后才报告成功。
+
 ## 已完成功能
 
 ### 已有基础链路
@@ -65,10 +69,28 @@ Height = 48
 | 待机动画 | 0.46 | 132 | 139 |
 | 弹窗 | 0.48 | 16 | 634 |
 
-- `GameScene` 当前只有 `Unknown` 和 `Home`；`Unknown` 表示证据不足，可能是其他页面、待机动画或弹窗，不代表执行异常。
+- `GameScene` 当前包含 `Unknown`、`Home` 和 `MissionPanel`；`Unknown` 表示首页与任务面板证据均不足，或两者意外同时满足，不代表执行异常。
 - `HomeSceneRecognizer` 要求模板分数不低于 `0.75`，且最佳位置在 `(948, 535)` 的 X/Y 各 `±5` 像素内，才返回 `Home`，否则返回 `Unknown`。
 - `HomeSceneRecognizer` 只接收基础数值，不引用 Vision、OpenCV 或 WPF 类型；当前只有一个确定性的实现，因此不增加 interface。
+- `MissionPanelRecognizer` 要求任务面板模板分数不低于 `0.90`，且最佳位置在 `(24, 14)` 的 X/Y 各 `±5` 像素内，才返回 `MissionPanel`，否则返回 `Unknown`。
+- `KoihimeObserver` 合并两个识别结果：只命中首页时返回 `Home`，只命中任务面板时返回 `MissionPanel`，两者同时命中或均未命中时返回 `Unknown`。
 - `App.xaml.cs` 在组合根创建并注入 `HomeSceneRecognizer`；现有模板诊断命令先匹配模板，再解释为场景，不新增按钮。
+
+### 本窗口完成的一次场景观察入口
+
+- `src/HimeBot.App/Observation/KoihimeObserver.cs` 对 ViewModel 只暴露一次异步观察方法，隐藏截图文件命名、模板资源路径和各步骤调用顺序。
+- `KoihimeObservationResult` 只向调用方返回 `IsSuccess`、`Scene`、`Message` 和 `ScreenshotPath`；模板分数、位置、截图尺寸与模板尺寸留在观察实现内部。`IsSuccess = true` 且场景为 `Unknown` 表示观察执行成功但场景证据不足，不是技术失败；技术失败固定返回 `IsSuccess = false` 与 `Scene = Unknown`。
+- 当前首页规则只适用于 `1280 × 720`，因此观察入口在模板匹配前校验实际截图尺寸；尺寸不符时安全失败并保留已生成的截图路径。
+- `App.xaml.cs` 使用已有的 `WindowsGameScreenshotCapture`、`TemplateMatcher` 与 `HomeSceneRecognizer` 组装同一个观察模块实例，并通过构造函数注入 `MainViewModel`。
+- `MainViewModel` 的 `ObserveGameSceneCommand` 只在已经找到游戏窗口时启用；运行后更新最近截图和状态证据，不触发鼠标输入。
+- 旧的“保存客户区截图”和“匹配首页模板”诊断命令暂时保留，用于与新的一次观察入口对照验证。
+- 用户已人工确认一次场景观察入口能够成功运行。
+- App 构建仍会保留并复制 `mission-icon.png` 与 `mission-reward-icon.png` 两张人工样本，但观察入口不再匹配它们，状态栏也不再显示任务状态分数。
+- `src/HimeBot.App/Interaction/KoihimeMissionPanelOpener.cs` 对 ViewModel 暴露一次异步打开入口：先调用 `KoihimeObserver` 获取新截图并确认 `Home`，再通过 `SendInputAdapter` 点击客户区固定坐标 `(1235, 565)`；点击后按 `200 ms` 间隔重新观察，最长等待 `3 s`。
+- `MissionPanelOpenResult.IsSuccess` 只有在点击前确认首页、鼠标输入提交成功，且点击后观察到 `MissionPanel` 时才为 `true`；观察失败或超时均返回失败，调用方取消则通过 `CancellationToken` 终止等待。
+- WPF 已增加“打开任务”命令和按钮；未找到游戏窗口、观察失败或场景为 `Unknown` 时都不会点击。
+- 用户已人工确认首页点击能够打开任务面板，且非首页安全停止行为正常。
+- 新增 `310 × 74` 的 `mission-panel-header.png`，取自任务面板左上角固定标题区域 `(24, 14)`；观察入口会在所有场景上匹配该模板，并交给 `MissionPanelRecognizer` 解释为 `MissionPanel/Unknown`。原始分数与位置只在观察实现内部参与判断，不再通过观察结果返回。
 
 ### 本窗口完成的 OCR 链路
 
@@ -131,6 +153,13 @@ dotnet test HimeBot.sln --configuration Debug --property:Platform=x64
 - 用户已人工运行降级后的 OCR；粮食解析接入后的状态栏显示尚待人工复验。
 - 首页模板正负样本已经人工采集，`HomeSceneRecognizer` 注入和诊断命令接线已通过 x64 Debug 构建。
 - 2026-11-15 用户确认接线后的程序编译、启动和运行成功；本窗口没有逐项记录首页、其他页面、待机动画与弹窗最终显示的 `Home/Unknown` 结果，因此下个窗口不得虚构这项验证已经完成。
+- 一次场景观察入口及“观察当前场景”按钮已通过 x64 Debug 构建：`0` 个错误、`2` 个既有 OpenCvSharp `CS9057` 警告；`dotnet test` 退出码为 `0`，但没有测试项目和测试用例。用户已人工确认该入口运行成功。
+- 两张任务状态样本已确认复制到 App 输出目录；由于分数受首页背景影响，运行时模板证据链路已停用，样本仅作为实验记录保留。
+- “确认首页后点击任务入口”链路已通过 x64 Debug 构建：`0` 个错误、`2` 个既有 OpenCvSharp `CS9057` 警告；`dotnet test` 退出码为 `0`，但没有测试项目和测试用例。用户已人工确认首页能够打开任务面板，非首页不会点击。
+- 任务面板模板原始证据接线曾因运行中的旧版 HimeBot 锁定 App EXE/DLL 而先使用临时 `OutDir` 验证；旧进程退出后，标准 x64 Debug 构建已经成功。
+- `MissionPanelRecognizer` 与安全场景合并接线已通过标准 x64 Debug 构建：`0` 个错误、`2` 个既有 OpenCvSharp `CS9057` 警告；`dotnet test` 退出码为 `0`，但没有测试项目。用户已在构建后人工确认场景判断运行成功。
+- 任务面板打开后的后置条件轮询已在独立临时输出目录完成 x64 Debug 编译：`0` 个错误、`2` 个既有 OpenCvSharp `CS9057` 警告；同一临时输出目录下的 `dotnet test` 退出码为 `0`，但没有测试项目。随后用户已完成标准构建和人工验证，确认新闭环运行成功。
+- `KoihimeObservationResult` 精简为执行状态、最终场景、说明与截图路径后，标准 x64 Debug 构建成功：`0` 个错误、`2` 个既有 OpenCvSharp `CS9057` 警告；`dotnet test` 退出码为 `0`，但没有测试项目。用户已人工确认精简后的场景观察与任务面板打开闭环运行成功。
 
 ## 当前未提交工作树
 
@@ -143,11 +172,14 @@ dotnet test HimeBot.sln --configuration Debug --property:Platform=x64
  M src/HimeBot.App/HimeBot.App.csproj
  M src/HimeBot.App/MainWindow.xaml
  M src/HimeBot.App/ViewModels/MainViewModel.cs
-?? assets/
-?? src/HimeBot.Game.Koihime/Domain/GameScene.cs
-?? src/HimeBot.Game.Koihime/Perception/HomeSceneRecognizer.cs
-?? src/HimeBot.Game.Koihime/Perception/SceneRecognitionResult.cs
-?? src/HimeBot.Vision/Matching/
+ M src/HimeBot.Game.Koihime/Domain/GameScene.cs
+ M src/HimeBot.Game.Koihime/Perception/SceneRecognitionResult.cs
+?? assets/koihime/templates/mission-icon.png
+?? assets/koihime/templates/mission-panel-header.png
+?? assets/koihime/templates/mission-reward-icon.png
+?? src/HimeBot.App/Interaction/
+?? src/HimeBot.App/Observation/
+?? src/HimeBot.Game.Koihime/Perception/MissionPanelRecognizer.cs
 ```
 
 ## 本次会话交接摘要
@@ -157,6 +189,10 @@ dotnet test HimeBot.sln --configuration Debug --property:Platform=x64
 - 粮食 OCR 原文由 `GrainStockParser` 规范化和解析；“万”只是固定单位，不乘以 `10,000`，结构化数值继续使用 `int`，并允许当前粮食大于容量。
 - 首页模板只截取稳定的“ホーム設定”图标，文件为 `assets/koihime/templates/home-settings-icon.png`；通知红点不属于模板。
 - Vision 的 `TemplateMatcher` 只产生通用分数和位置，Koihime 的 `HomeSceneRecognizer` 才解释游戏场景；App 负责组装两者并显示证据。
+- App 的 `KoihimeObserver` 已把 WGC 截图、`1280 × 720` 校验、模板匹配和场景解释组合成一个 `ObserveAsync` 入口；观察结果只暴露执行状态、最终场景、说明与截图路径，原始模板证据不再泄漏给调用方。当前只有一个实现，因此没有新增 C# `interface`。
+- 任务入口无奖励与有奖励模板均为 `90 × 90`，但不再参与运行时判定；任务入口点击点取样本区域中心 `(1235, 565)`，且只在最新观察结果为 `Home` 时提交输入。
+- 任务面板固定标题模板为 `310 × 74`；`MissionPanelRecognizer` 使用分数 `>= 0.90`、位置接近 `(24, 14)` 且 X/Y 容差各为 `±5` 的规则生成 `MissionPanel/Unknown`，该判断本身不触发输入。
+- `KoihimeMissionPanelOpener` 在点击任务入口后每隔 `200 ms` 重新观察，最长等待 `3 s`；只有观察到 `MissionPanel` 才返回成功。该闭环和精简后的观察结果均已完成标准构建与人工验证。
 - 首页判定规则暂定为分数 `>= 0.75`，且位置接近 `(948, 535)`、X/Y 容差各为 `±5`；该规则目前仅适用于 `1280 × 720` 客户区截图。
 - 安全规则不变：`Unknown` 不触发鼠标输入，不采用“识别不到就移动到中心双击”的恢复方案；待机动画恢复策略应在观察循环设计时另行讨论。
 - 当前没有 xUnit 测试项目。`dotnet test` 退出码为 `0` 只代表还原/项目加载成功，没有自动测试用例可报告。
@@ -165,23 +201,20 @@ dotnet test HimeBot.sln --configuration Debug --property:Platform=x64
 
 1. 阅读 `AGENTS.md`、本文档和 `docs/project-structure.md`。
 2. 执行 `git status --short`，确认上述未提交文件仍在；保留用户改动。
-3. 保留现有实现；用户已确认当前版本编译运行成功，在继续修改后再构建 x64 Debug。
-4. 运行现有链路：保存截图 → 裁剪资源数字 → 识别资源文字。
-5. 确认状态栏同时显示 OCR 原文、约 `90.0%` 的置信度、规范化文字、当前粮食与容量。
-6. 对 `236万/ 454万`，确认结构化数值显示为 `236万` 与 `454万`，没有换算成实际个数。
-7. 如果上述四类场景的最终显示尚未逐项确认，在首页、其他页面、待机动画和弹窗中分别保存 `1280 × 720` 截图并执行“匹配首页模板”，记录 `Home/Unknown`，不要只记录分数。
+3. 将游戏客户区保持为 `1280 × 720`；已有 `Home/MissionPanel/Unknown` 场景观察、任务入口安全点击和打开后验证均已人工确认，不要重新解释为待验证功能。
+4. 采集“有奖励的任务面板”“点击一括完了后的画面”和“无奖励的任务面板”，记录右下角“一括完了”的点击坐标以及点击后的实际行为。
+5. 根据三个样本选择稳定的领取后置条件，再讨论下一步最小实现；在样本结论明确前不要新增奖励状态模板或点击代码。
 
 ## 下一条主线
 
-先补齐首页场景识别的运行证据，再讨论一次性场景观察入口：
+观察结果精简后，下一条主线是采集领取任务奖励所需的三个画面：
 
 ```text
-1280 × 720 客户区截图
-    → 匹配 home-settings-icon.png
-    → HomeSceneRecognizer 判断分数与位置
-    → 首页显示 Home
-    → 其他页面 / 待机动画 / 弹窗显示 Unknown
-    → 讨论如何组合截图、模板匹配和场景解释
+有奖励的任务面板
+    → 人工点击右下角“一括完了”
+    → 保存点击后出现的弹窗或结果画面
+    → 保存无奖励时的任务面板
+    → 选择稳定区域作为领取动作的后置条件
 ```
 
-当前判定仅适用于 `1280 × 720` 客户区截图。确认诊断结果后，下一步应先设计一个“一次观察、返回结果”的最小纵向入口，再考虑循环、超时和恢复；不要直接进入自动点击。`Unknown` 仍然不触发任何点击。
+当前观察和点击坐标仅适用于 `1280 × 720` 客户区。程序不会判断首页红色感叹号，也不会根据首页奖励状态决定是否进入任务面板。打开后的状态轮询与超时已经实现并通过人工验证，但领取奖励、自动重试和恢复尚未实现。

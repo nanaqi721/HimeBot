@@ -1,6 +1,8 @@
 ﻿
 
 using HimeBot.App.FilePicking;
+using HimeBot.App.Interaction;
+using HimeBot.App.Observation;
 using HimeBot.App.ViewModels;
 using HimeBot.Game.Koihime.Perception;
 using HimeBot.Platform.Windows.Input;
@@ -40,6 +42,21 @@ public partial class App : Application
 
         var homeSceneRecognizer = new HomeSceneRecognizer();
 
+        var missionPanelRecognizer =
+            new MissionPanelRecognizer();
+
+        var koihimeObserver =
+            new KoihimeObserver(
+                gameScreenShotCapture,
+                templateMatcher,
+                homeSceneRecognizer,
+                missionPanelRecognizer);
+
+        var missionPanelOpener =
+            new KoihimeMissionPanelOpener(
+                koihimeObserver,
+                sendInputAdapter);
+
         var textRecognizer = new TesseractTextRecognizer();
 
         var grainStockParser = new GrainStockParser();
@@ -54,6 +71,8 @@ public partial class App : Application
             imagePreprocessor,
             templateMatcher,
             homeSceneRecognizer,
+            koihimeObserver,
+            missionPanelOpener,
             textRecognizer,
             grainStockParser);
         var mainWindow = new MainWindow

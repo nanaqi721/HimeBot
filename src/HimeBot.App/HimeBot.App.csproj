@@ -21,6 +21,18 @@
 	  <Link>assets\koihime\templates\home-settings-icon.png</Link>
 	  <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <None Include="..\..\assets\koihime\templates\mission-icon.png">
+	  <Link>assets\koihime\templates\mission-icon.png</Link>
+	  <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="..\..\assets\koihime\templates\mission-reward-icon.png">
+	  <Link>assets\koihime\templates\mission-reward-icon.png</Link>
+	  <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="..\..\assets\koihime\templates\mission-panel-header.png">
+	  <Link>assets\koihime\templates\mission-panel-header.png</Link>
+	  <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 
 </Project>

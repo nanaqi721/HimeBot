@@ -1,6 +1,8 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using HimeBot.App.FilePicking;
+using HimeBot.App.Interaction;
+using HimeBot.App.Observation;
 using HimeBot.Core.Launching;
 using HimeBot.Core.Ports;
 using HimeBot.Core.Windowing;
@@ -31,6 +33,8 @@ public sealed class MainViewModel : ObservableObject
     private readonly ImagePreprocessor _imagePreprocessor;
     private readonly TemplateMatcher _templateMatcher;
     private readonly HomeSceneRecognizer _homeSceneRecognizer;
+    private readonly KoihimeObserver _koihimeObserver;
+    private readonly KoihimeMissionPanelOpener _missionPanelOpener;
     private readonly TesseractTextRecognizer _textRecognizer;
     private readonly GrainStockParser _grainStockParser;
 
@@ -51,6 +55,8 @@ public sealed class MainViewModel : ObservableObject
         ImagePreprocessor imagePreprocessor,
         TemplateMatcher templateMatcher,
         HomeSceneRecognizer homeSceneRecognizer,
+        KoihimeObserver koihimeObserver,
+        KoihimeMissionPanelOpener missionPanelOpener,
         TesseractTextRecognizer textRecognizer,
         GrainStockParser grainStockParser)
     {
@@ -63,6 +69,8 @@ public sealed class MainViewModel : ObservableObject
         _imagePreprocessor = imagePreprocessor;
         _templateMatcher = templateMatcher;
         _homeSceneRecognizer = homeSceneRecognizer;
+        _koihimeObserver = koihimeObserver;
+        _missionPanelOpener = missionPanelOpener;
         _textRecognizer = textRecognizer;
         _grainStockParser = grainStockParser;
 
@@ -102,6 +110,16 @@ public sealed class MainViewModel : ObservableObject
             new AsyncRelayCommand(
                 CaptureGameScreenshotAsync,
                 CanCaptureGameScreenshot);
+
+        ObserveGameSceneCommand =
+            new AsyncRelayCommand(
+                ObserveGameSceneAsync,
+                CanObserveGameScene);
+
+        OpenMissionPanelCommand =
+            new AsyncRelayCommand(
+                OpenMissionPanelAsync,
+                CanOpenMissionPanel);
 
         TestMoveCursorCommand =
             new RelayCommand(
@@ -203,6 +221,10 @@ public sealed class MainViewModel : ObservableObject
     {
         get;
     }
+
+    public IAsyncRelayCommand ObserveGameSceneCommand { get; }
+
+    public IAsyncRelayCommand OpenMissionPanelCommand { get; }
 
     public IRelayCommand TestMoveCursorCommand { get; }
 
@@ -340,6 +362,12 @@ public sealed class MainViewModel : ObservableObject
         CaptureGameScreenshotCommand
             .NotifyCanExecuteChanged();
 
+        ObserveGameSceneCommand
+            .NotifyCanExecuteChanged();
+
+        OpenMissionPanelCommand
+            .NotifyCanExecuteChanged();
+
         TestMoveCursorCommand
             .NotifyCanExecuteChanged();
 
@@ -419,6 +447,82 @@ public sealed class MainViewModel : ObservableObject
         StatusMessage =
             $"{result.Message} " +
             $"图片尺寸：{result.Width} × {result.Height}。";
+    }
+
+    private bool CanObserveGameScene()
+    {
+        return _locatedGameWindow is not null;
+    }
+
+    private async Task ObserveGameSceneAsync(
+        CancellationToken cancellationToken)
+    {
+        GameWindowInfo? window =
+            _locatedGameWindow;
+
+        if (window is null)
+        {
+            StatusMessage =
+                "请先查找游戏窗口。";
+
+            return;
+        }
+
+        KoihimeObservationResult result =
+            await _koihimeObserver.ObserveAsync(
+                window,
+                cancellationToken);
+
+        if (!string.IsNullOrWhiteSpace(
+                result.ScreenshotPath))
+        {
+            SetLatestCapturePath(
+                result.ScreenshotPath);
+        }
+
+        if (!result.IsSuccess)
+        {
+            StatusMessage = result.Message;
+            return;
+        }
+
+        StatusMessage =
+            $"{result.Message} " +
+            $"截图路径：{result.ScreenshotPath}。";
+    }
+
+    private bool CanOpenMissionPanel()
+    {
+        return _locatedGameWindow is not null;
+    }
+
+    private async Task OpenMissionPanelAsync(
+        CancellationToken cancellationToken)
+    {
+        GameWindowInfo? window =
+            _locatedGameWindow;
+
+        if (window is null)
+        {
+            StatusMessage =
+                "请先查找游戏窗口。";
+
+            return;
+        }
+
+        MissionPanelOpenResult result =
+            await _missionPanelOpener.OpenAsync(
+                window,
+                cancellationToken);
+
+        if (!string.IsNullOrWhiteSpace(
+                result.ScreenshotPath))
+        {
+            SetLatestCapturePath(
+                result.ScreenshotPath);
+        }
+
+        StatusMessage = result.Message;
     }
 
     private bool CanUseGameInput()

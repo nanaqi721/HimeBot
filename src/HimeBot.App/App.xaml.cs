@@ -8,6 +8,7 @@ using HimeBot.Platform.Windows.Launching;
 using HimeBot.Platform.Windows.ScreenCapture;
 using HimeBot.Platform.Windows.Windowing;
 using HimeBot.Vision.ImageProcessing;
+using HimeBot.Vision.Matching;
 using HimeBot.Vision.Ocr;
 using System.Windows;
 
@@ -35,6 +36,10 @@ public partial class App : Application
 
         var imagePreprocessor = new ImagePreprocessor();
 
+        var templateMatcher = new TemplateMatcher();
+
+        var homeSceneRecognizer = new HomeSceneRecognizer();
+
         var textRecognizer = new TesseractTextRecognizer();
 
         var grainStockParser = new GrainStockParser();
@@ -47,6 +52,8 @@ public partial class App : Application
             sendInputAdapter,
             gameWindowController,
             imagePreprocessor,
+            templateMatcher,
+            homeSceneRecognizer,
             textRecognizer,
             grainStockParser);
         var mainWindow = new MainWindow

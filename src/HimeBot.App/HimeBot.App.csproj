@@ -16,4 +16,11 @@
     <ProjectReference Include="..\HimeBot.Vision\HimeBot.Vision.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="..\..\assets\koihime\templates\home-settings-icon.png">
+	  <Link>assets\koihime\templates\home-settings-icon.png</Link>
+	  <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>

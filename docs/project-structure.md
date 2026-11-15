@@ -79,11 +79,11 @@ HimeBot/
 
 用户实际动手开发的解决方案目前位于仓库根目录的 `HimeBot.sln` 和 `src/`；`Tutorial/` 继续作为智能体生成参考实现的独立工作区。实际项目当前包含：
 
-- `HimeBot.App`：WPF 程序入口、启动目标选择、窗口与截图诊断命令、OCR 与粮食解析诊断命令和状态显示。
+- `HimeBot.App`：WPF 程序入口、启动目标选择、窗口与截图诊断命令、OCR、粮食解析、首页场景识别诊断命令和状态显示。
 - `HimeBot.Core`：游戏启动与窗口定位的结果模型和外部边界接口。
-- `HimeBot.Game.Koihime`：恋姬大战专用的粮食库存模型、OCR 文字规范化与数值解析。
+- `HimeBot.Game.Koihime`：恋姬大战专用的粮食库存模型、OCR 文字规范化与数值解析，以及首页场景含义与判定规则。
 - `HimeBot.Platform.Windows`：DMM Shell 启动、Windows 进程窗口定位、客户区尺寸读取与调整、单帧截图和 `SendInput` 鼠标输入。
-- `HimeBot.Vision`：使用 OpenCvSharp 生成灰度图、Otsu 二值图和矩形 ROI 副本，并使用 Tesseract 识别日文单行文字。
+- `HimeBot.Vision`：使用 OpenCvSharp 生成灰度图、Otsu 二值图、矩形 ROI 副本和模板匹配证据，并使用 Tesseract 识别日文单行文字。
 
 当前引用方向为：
 
@@ -112,6 +112,7 @@ HimeBot.Platform.Windows ──> HimeBot.Core
 | 单帧截图与 Windows Graphics Capture | `src/HimeBot.Platform.Windows/ScreenCapture/` | WGC 遮挡隔离与客户区动态裁剪均已人工运行验证 |
 | 客户区坐标鼠标移动与点击 | `src/HimeBot.Platform.Windows/Input/` | `SendInput` 移动和左键点击均已实现并人工验证 |
 | 灰度图、Otsu 二值图与矩形 ROI 裁剪 | `src/HimeBot.Vision/ImageProcessing/` | 已通过 MVVM 命令接入 WPF；资源数字 ROI 已人工验证 |
+| OpenCV 模板匹配 | `src/HimeBot.Vision/Matching/`、`assets/koihime/templates/` | 已接入 WPF 诊断命令并完成构建；首页与非首页分数待人工采集 |
 | 日文单行 OCR | `src/HimeBot.Vision/Ocr/`、`src/HimeBot.Vision/tessdata/` | 已接入 WPF；真实资源 ROI 已正确识别 `236万/454万` |
 | 粮食文字规范化与数值解析 | `src/HimeBot.Game.Koihime/Domain/`、`src/HimeBot.Game.Koihime/Perception/` | 已接入现有 OCR 命令并完成构建；真实 ROI 的解析显示待人工验证 |
 
@@ -209,13 +210,18 @@ HimeBot.Core/
 ```text
 HimeBot.Game.Koihime/
 ├─ Domain/
+│  ├─ GameScene.cs
 │  └─ GrainStock.cs
 └─ Perception/
    ├─ GrainStockParseResult.cs
-   └─ GrainStockParser.cs
+   ├─ GrainStockParser.cs
+   ├─ HomeSceneRecognizer.cs
+   └─ SceneRecognitionResult.cs
 ```
 
 `GrainStockParser` 对 OCR 原文执行 Unicode 兼容规范化、移除空白，并严格解析“当前粮食/容量”两段以“万”为单位的非负 `int`。`万`只作为固定显示单位，不换算为实际个数；游戏允许当前粮食数值大于容量，因此解析器不施加大小关系约束。App 在现有 OCR 命令中调用这一解析器并显示原文、置信度、规范化文字与结构化数值。当前只有一个确定性解析实现，不增加 interface。
+
+`HomeSceneRecognizer` 根据首页模板的匹配分数与最佳位置生成 `Home/Unknown`。当前 `1280 × 720` 规则要求分数至少为 `0.75`，且位置在 `(948, 535)` 的 X/Y 各 `±5` 像素内。它只接收基础数值，不引用 Vision 或 WPF 类型；App 负责把 `TemplateMatchResult` 中的证据传入该模块并显示结果。当前只有一个确定性识别实现，不增加 interface，`Unknown` 不触发输入操作。
 
 后续目标结构：
 
@@ -340,6 +346,9 @@ HimeBot.Vision/
 ├─ ImageProcessing/
 │  ├─ ImagePreprocessor.cs
 │  └─ ImageProcessingResult.cs
+├─ Matching/
+│  ├─ TemplateMatcher.cs
+│  └─ TemplateMatchResult.cs
 ├─ Ocr/
 │  ├─ OcrRecognitionResult.cs
 │  └─ TesseractTextRecognizer.cs
@@ -349,7 +358,9 @@ HimeBot.Vision/
 
 `ImagePreprocessor` 当前对外提供异步灰度副本、Otsu 二值副本和矩形 ROI 副本操作，隐藏 OpenCV 原生库加载、路径与区域边界检查、图片读取、输出目录创建、资源释放和异常转换。App 通过 MVVM 命令处理最近一次成功截图，并将诊断图片保存到 `%LocalAppData%/HimeBot/processed/`。当前资源数字诊断按钮使用 `1280 × 720` 参考截图上的临时坐标；区域稳定后再移入 Koihime 专用配置。
 
-`TesseractTextRecognizer` 当前加载输出目录中的 `tessdata/jpn.traineddata`，使用日文 LSTM 与单行分割模式，并返回 OCR 原文和平均置信度。App 直接注入这一生产实现；由于还没有第二个 OCR adapter 或测试 adapter，当前不创建 `ITextRecognizer`。`Matching/` 仍等到第一次需要模板匹配时再创建。
+`TesseractTextRecognizer` 当前加载输出目录中的 `tessdata/jpn.traineddata`，使用日文 LSTM 与单行分割模式，并返回 OCR 原文和平均置信度。App 直接注入这一生产实现；由于还没有第二个 OCR adapter 或测试 adapter，当前不创建 `ITextRecognizer`。
+
+`TemplateMatcher` 当前使用彩色 `CCoeffNormed` 在输入图片中寻找模板的最佳位置，并返回执行状态、分数、位置和模板尺寸。它不接受首页阈值，也不返回游戏场景；App 将这些通用视觉证据交给 Koihime 的 `HomeSceneRecognizer` 解释。当前只有一个 OpenCV 实现，因此不创建 `ITemplateMatcher`。仓库根目录的 `assets/koihime/templates/home-settings-icon.png` 在构建时复制到 App 输出目录，WPF 诊断命令显示匹配证据和场景结果。
 
 OCR adapter 只返回原始文字和置信度。空白清理、文字纠错、数值范围和游戏规则校验属于 `HimeBot.Game.Koihime`。
 

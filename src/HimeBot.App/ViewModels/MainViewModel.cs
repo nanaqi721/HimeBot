@@ -9,6 +9,7 @@ using HimeBot.Platform.Windows.Input;
 using HimeBot.Platform.Windows.ScreenCapture;
 using HimeBot.Platform.Windows.Windowing;
 using HimeBot.Vision.ImageProcessing;
+using HimeBot.Vision.Matching;
 using HimeBot.Vision.Ocr;
 using System.IO;
 
@@ -16,10 +17,10 @@ namespace HimeBot.App.ViewModels;
 
 public sealed class MainViewModel : ObservableObject
 {
-    private const int ResourceCounterRegionX = 540;
-    private const int ResourceCounterRegionY = 12;
-    private const int ResourceCounterRegionWidth = 195;
-    private const int ResourceCounterRegionHeight = 48;
+    private const int GrainStockRegionX = 540;
+    private const int GrainStockRegionY = 12;
+    private const int GrainStockRegionWidth = 195;
+    private const int GrainStockRegionHeight = 48;
 
     private readonly IGameLaunchTargetPicker _gameLaunchTargetPicker;
     private readonly IGameLauncher _gameLauncher;
@@ -28,6 +29,8 @@ public sealed class MainViewModel : ObservableObject
     private readonly SendInputAdapter _sendInputAdapter;
     private readonly WindowsGameWindowController _gameWindowController;
     private readonly ImagePreprocessor _imagePreprocessor;
+    private readonly TemplateMatcher _templateMatcher;
+    private readonly HomeSceneRecognizer _homeSceneRecognizer;
     private readonly TesseractTextRecognizer _textRecognizer;
     private readonly GrainStockParser _grainStockParser;
 
@@ -46,6 +49,8 @@ public sealed class MainViewModel : ObservableObject
         SendInputAdapter sendInputAdapter,
         WindowsGameWindowController gameWindowController,
         ImagePreprocessor imagePreprocessor,
+        TemplateMatcher templateMatcher,
+        HomeSceneRecognizer homeSceneRecognizer,
         TesseractTextRecognizer textRecognizer,
         GrainStockParser grainStockParser)
     {
@@ -56,6 +61,8 @@ public sealed class MainViewModel : ObservableObject
         _sendInputAdapter = sendInputAdapter;
         _gameWindowController = gameWindowController;
         _imagePreprocessor = imagePreprocessor;
+        _templateMatcher = templateMatcher;
+        _homeSceneRecognizer = homeSceneRecognizer;
         _textRecognizer = textRecognizer;
         _grainStockParser = grainStockParser;
 
@@ -136,6 +143,11 @@ public sealed class MainViewModel : ObservableObject
                 CreateOcrRegionCopyAsync,
                 CanCreateProcessedCopy);
 
+        MatchHomeTemplateCommand =
+            new AsyncRelayCommand(
+                MatchHomeTemplateAsync,
+                CanMatchHomeTemplate);
+
         RecognizeOcrRegionCommand =
             new AsyncRelayCommand(
                 RecognizeOcrRegionAsync,
@@ -207,6 +219,8 @@ public sealed class MainViewModel : ObservableObject
     public IAsyncRelayCommand CreateBinaryCopyCommand { get; }
 
     public IAsyncRelayCommand CreateOcrRegionCopyCommand { get; }
+
+    public IAsyncRelayCommand MatchHomeTemplateCommand { get; }
 
     public IAsyncRelayCommand RecognizeOcrRegionCommand { get; }
 
@@ -584,6 +598,9 @@ public sealed class MainViewModel : ObservableObject
 
         CreateOcrRegionCopyCommand
             .NotifyCanExecuteChanged();
+
+        MatchHomeTemplateCommand
+            .NotifyCanExecuteChanged();
     }
 
     private void SetLatestOcrRegionPath(
@@ -599,6 +616,62 @@ public sealed class MainViewModel : ObservableObject
     {
         return !string.IsNullOrWhiteSpace(
             _latestCapturePath);
+    }
+
+    private bool CanMatchHomeTemplate()
+    {
+        return !string.IsNullOrWhiteSpace(
+            _latestCapturePath);
+    }
+
+    private async Task MatchHomeTemplateAsync(
+        CancellationToken cancellationToken)
+    {
+        string? sourcePath =
+            _latestCapturePath;
+
+        if (string.IsNullOrWhiteSpace(sourcePath))
+        {
+            StatusMessage =
+                "请先保存一张客户区截图。";
+
+            return;
+        }
+
+        string templatePath =
+            Path.Combine(
+                AppContext.BaseDirectory,
+                "assets",
+                "koihime",
+                "templates",
+                "home-settings-icon.png");
+
+        TemplateMatchResult result =
+            await _templateMatcher
+                .FindBestMatchAsync(
+                    sourcePath,
+                    templatePath,
+                    cancellationToken);
+
+        if (!result.IsSuccess)
+        {
+            StatusMessage = result.Message;
+            return;
+        }
+
+        SceneRecognitionResult sceneResult =
+            _homeSceneRecognizer.Recognize(
+                result.BestScore,
+                result.X,
+                result.Y);
+
+        StatusMessage =
+            $"场景识别结果：{sceneResult.Scene}；" +
+            $"{sceneResult.Message} " +
+            $"最佳分数：{sceneResult.Score:0.0000}；" +
+            $"匹配位置：X={sceneResult.MatchX}，" +
+            $"Y={sceneResult.MatchY}；" +
+            $"模板尺寸：{result.Width} × {result.Height}。";
     }
 
     private async Task CreateGrayscaleCopyAsync(
@@ -718,10 +791,10 @@ public sealed class MainViewModel : ObservableObject
                 .CreateRegionCopyAsync(
                     sourcePath,
                     outputPath,
-                    ResourceCounterRegionX,
-                    ResourceCounterRegionY,
-                    ResourceCounterRegionWidth,
-                    ResourceCounterRegionHeight,
+                    GrainStockRegionX,
+                    GrainStockRegionY,
+                    GrainStockRegionWidth,
+                    GrainStockRegionHeight,
                     cancellationToken);
 
         if (!result.IsSuccess)

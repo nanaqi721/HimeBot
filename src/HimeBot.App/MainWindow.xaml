@@ -103,6 +103,11 @@
             Orientation="Horizontal">
 
             <Button Margin="0,0,8,0"
+                    Padding="16,6"
+                    Content="匹配首页模板"
+                    Command="{Binding MatchHomeTemplateCommand}" />
+
+            <Button Margin="0,0,8,0"
             Padding="16,6"
             Content="设置游戏置顶"
             Command="{Binding SetGameWindowTopmostCommand}" />

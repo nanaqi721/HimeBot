@@ -1,6 +1,6 @@
 # HimeBot 项目状态
 
-> 最近验证日期：2026-11-14
+> 最近验证日期：2026-11-15
 
 本文档是新窗口恢复开发上下文的入口。先阅读根目录 `AGENTS.md`，再阅读本文档；更改项目布局、引用方向、模块职责或实现阶段前，还要阅读 `docs/project-structure.md`。
 
@@ -17,6 +17,8 @@ Windows Graphics Capture 客户区截图
 ```
 
 真实运行时，彩色 ROI 已正确识别顶部粮食文本 `236万/454万`（Tesseract 原文可能在 `/` 后保留一个空格）。用户已确认降级到 `TesseractOCR` 5.3.5 后 OCR 仍能运行成功。粮食解析器和 WPF 展示已完成构建，等待使用真实 ROI 人工确认最终显示。
+
+首页场景识别的诊断链路也已完成接入：App 使用最近一次 `1280 × 720` 客户区截图调用 Vision 的 OpenCV 模板匹配器，再把最佳分数与位置交给 Koihime 的 `HomeSceneRecognizer`，生成 `Home/Unknown` 并显示判断证据。用户已确认接线后的项目能够编译并启动运行；该链路只报告场景，不会触发鼠标输入。
 
 ## 已完成功能
 
@@ -45,6 +47,28 @@ Height = 48
 
 - 用户已经人工确认 `*-resource-roi.png` 能稳定截取 `236万 / 454万`。
 - 整图 Otsu 二值化会把复杂背景和人物高光压成大片纯黑或纯白，因此不直接用于 OCR；当前彩色 ROI 已能正确识别，暂时不增加灰度或二值预处理。
+- `TemplateMatcher` 使用 OpenCV 彩色 `CCoeffNormed` 模板匹配，返回最佳分数、位置和模板尺寸；`IsSuccess` 只表示算法成功执行，不表示已经确认首页。
+- 首页模板 `assets/koihime/templates/home-settings-icon.png` 为 `62 × 52`，取自 `1280 × 720` 首页截图中的稳定“ホーム設定”圆形图标，并在构建时复制到 App 输出目录。
+- WPF 已增加“匹配首页模板”诊断按钮；按钮仅在存在最近一次成功截图时启用，并显示模板证据以及 `Home/Unknown` 场景结果。
+
+### 本窗口完成的首页场景识别
+
+人工采集的 `1280 × 720` 模板匹配样本：
+
+| 场景 | 最佳分数 | X | Y |
+| --- | ---: | ---: | ---: |
+| 首页 1 | 0.84 | 948 | 535 |
+| 首页 2 | 0.81 | 948 | 535 |
+| 首页 3 | 0.86 | 948 | 535 |
+| 其他页面 1 | 0.39 | 320 | 418 |
+| 其他页面 2 | 0.36 | 287 | 334 |
+| 待机动画 | 0.46 | 132 | 139 |
+| 弹窗 | 0.48 | 16 | 634 |
+
+- `GameScene` 当前只有 `Unknown` 和 `Home`；`Unknown` 表示证据不足，可能是其他页面、待机动画或弹窗，不代表执行异常。
+- `HomeSceneRecognizer` 要求模板分数不低于 `0.75`，且最佳位置在 `(948, 535)` 的 X/Y 各 `±5` 像素内，才返回 `Home`，否则返回 `Unknown`。
+- `HomeSceneRecognizer` 只接收基础数值，不引用 Vision、OpenCV 或 WPF 类型；当前只有一个确定性的实现，因此不增加 interface。
+- `App.xaml.cs` 在组合根创建并注入 `HomeSceneRecognizer`；现有模板诊断命令先匹配模板，再解释为场景，不新增按钮。
 
 ### 本窗口完成的 OCR 链路
 
@@ -105,6 +129,8 @@ dotnet test HimeBot.sln --configuration Debug --property:Platform=x64
 - 测试命令退出码为 `0`，但解决方案中没有测试项目。
 - 临时解析器检查共 `19` 项，全部通过；这些检查不在仓库中，后续修改不会自动回归。
 - 用户已人工运行降级后的 OCR；粮食解析接入后的状态栏显示尚待人工复验。
+- 首页模板正负样本已经人工采集，`HomeSceneRecognizer` 注入和诊断命令接线已通过 x64 Debug 构建。
+- 2026-11-15 用户确认接线后的程序编译、启动和运行成功；本窗口没有逐项记录首页、其他页面、待机动画与弹窗最终显示的 `Home/Unknown` 结果，因此下个窗口不得虚构这项验证已经完成。
 
 ## 当前未提交工作树
 
@@ -113,31 +139,49 @@ dotnet test HimeBot.sln --configuration Debug --property:Platform=x64
 ```text
  M PROJECT_STATUS.md
  M docs/project-structure.md
- M HimeBot.sln
  M src/HimeBot.App/App.xaml.cs
  M src/HimeBot.App/HimeBot.App.csproj
+ M src/HimeBot.App/MainWindow.xaml
  M src/HimeBot.App/ViewModels/MainViewModel.cs
-?? src/HimeBot.Game.Koihime/
+?? assets/
+?? src/HimeBot.Game.Koihime/Domain/GameScene.cs
+?? src/HimeBot.Game.Koihime/Perception/HomeSceneRecognizer.cs
+?? src/HimeBot.Game.Koihime/Perception/SceneRecognitionResult.cs
+?? src/HimeBot.Vision/Matching/
 ```
+
+## 本次会话交接摘要
+
+- 固定技术基线仍为 `.NET 7`、WPF、x64；没有升级目标框架。
+- `TesseractOCR` 已从 `5.5.2` 固定为 `5.3.5`，从而避免间接引入不正式支持 .NET 7 的 `Microsoft.Extensions.Logging.Abstractions 10.0.3`；用户已确认降级后 OCR 能运行。
+- 粮食 OCR 原文由 `GrainStockParser` 规范化和解析；“万”只是固定单位，不乘以 `10,000`，结构化数值继续使用 `int`，并允许当前粮食大于容量。
+- 首页模板只截取稳定的“ホーム設定”图标，文件为 `assets/koihime/templates/home-settings-icon.png`；通知红点不属于模板。
+- Vision 的 `TemplateMatcher` 只产生通用分数和位置，Koihime 的 `HomeSceneRecognizer` 才解释游戏场景；App 负责组装两者并显示证据。
+- 首页判定规则暂定为分数 `>= 0.75`，且位置接近 `(948, 535)`、X/Y 容差各为 `±5`；该规则目前仅适用于 `1280 × 720` 客户区截图。
+- 安全规则不变：`Unknown` 不触发鼠标输入，不采用“识别不到就移动到中心双击”的恢复方案；待机动画恢复策略应在观察循环设计时另行讨论。
+- 当前没有 xUnit 测试项目。`dotnet test` 退出码为 `0` 只代表还原/项目加载成功，没有自动测试用例可报告。
 
 ## 下一窗口恢复顺序
 
 1. 阅读 `AGENTS.md`、本文档和 `docs/project-structure.md`。
 2. 执行 `git status --short`，确认上述未提交文件仍在；保留用户改动。
-3. 构建 x64 Debug，确认解决方案中的五个项目都能成功编译。
+3. 保留现有实现；用户已确认当前版本编译运行成功，在继续修改后再构建 x64 Debug。
 4. 运行现有链路：保存截图 → 裁剪资源数字 → 识别资源文字。
 5. 确认状态栏同时显示 OCR 原文、约 `90.0%` 的置信度、规范化文字、当前粮食与容量。
 6. 对 `236万/ 454万`，确认结构化数值显示为 `236万` 与 `454万`，没有换算成实际个数。
+7. 如果上述四类场景的最终显示尚未逐项确认，在首页、其他页面、待机动画和弹窗中分别保存 `1280 × 720` 截图并执行“匹配首页模板”，记录 `Home/Unknown`，不要只记录分数。
 
 ## 下一条主线
 
-人工验证新接入的粮食解析显示：
+先补齐首页场景识别的运行证据，再讨论一次性场景观察入口：
 
 ```text
-OCR 原文："236万/ 454万"
-    → 去除空白并校验格式
-    → 当前粮食：236万
-    → 容量：454万
+1280 × 720 客户区截图
+    → 匹配 home-settings-icon.png
+    → HomeSceneRecognizer 判断分数与位置
+    → 首页显示 Home
+    → 其他页面 / 待机动画 / 弹窗显示 Unknown
+    → 讨论如何组合截图、模板匹配和场景解释
 ```
 
-确认真实 ROI 的最终显示后，再讨论是否将 `ResourceCounterRegionX` 等临时诊断名称统一为粮食领域术语，并决定下一条最小识别闭环；暂时不创建通用坐标选择器、测试项目或自动点击任务。
+当前判定仅适用于 `1280 × 720` 客户区截图。确认诊断结果后，下一步应先设计一个“一次观察、返回结果”的最小纵向入口，再考虑循环、超时和恢复；不要直接进入自动点击。`Unknown` 仍然不触发任何点击。

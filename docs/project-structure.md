@@ -79,7 +79,7 @@ HimeBot/
 
 用户实际动手开发的解决方案目前位于仓库根目录的 `HimeBot.sln` 和 `src/`；`Tutorial/` 继续作为智能体生成参考实现的独立工作区。实际项目当前包含：
 
-- `HimeBot.App`：WPF 程序入口、启动目标选择、窗口与截图诊断命令、OCR、粮食解析、首页与任务面板场景观察编排，以及确认首页后点击任务入口的动作编排。
+- `HimeBot.App`：WPF 程序入口、启动目标选择、窗口与截图诊断命令、OCR、粮食解析、分场景观察编排，以及打开任务面板和领取任务奖励的动作编排。
 - `HimeBot.Core`：游戏启动与窗口定位的结果模型和外部边界接口。
 - `HimeBot.Game.Koihime`：恋姬大战专用的粮食库存模型、OCR 文字规范化与数值解析，以及首页和任务面板的场景含义与判定规则。
 - `HimeBot.Platform.Windows`：DMM Shell 启动、Windows 进程窗口定位、客户区尺寸读取与调整、单帧截图和 `SendInput` 鼠标输入。
@@ -112,10 +112,12 @@ HimeBot.Platform.Windows ──> HimeBot.Core
 | 单帧截图与 Windows Graphics Capture | `src/HimeBot.Platform.Windows/ScreenCapture/` | WGC 遮挡隔离与客户区动态裁剪均已人工运行验证 |
 | 客户区坐标鼠标移动与点击 | `src/HimeBot.Platform.Windows/Input/` | `SendInput` 移动和左键点击均已实现并人工验证 |
 | 灰度图、Otsu 二值图与矩形 ROI 裁剪 | `src/HimeBot.Vision/ImageProcessing/` | 已通过 MVVM 命令接入 WPF；资源数字 ROI 已人工验证 |
-| OpenCV 模板匹配 | `src/HimeBot.Vision/Matching/`、`assets/koihime/templates/` | 首页和任务面板模板已人工验证；新增奖励弹窗“閉じる”模板，等待真实运行复验 |
+| OpenCV 模板匹配 | `src/HimeBot.Vision/Matching/`、`assets/koihime/templates/` | 首页、任务面板和奖励弹窗“閉じる”模板均已人工运行验证 |
 | 固定区域颜色分析 | `src/HimeBot.Vision/ColorAnalysis/` | 返回通用平均 RGB 证据；任务面板观察者使用红色通道判断“一括完了”的可领取状态 |
 | 分场景观察 | `src/HimeBot.App/Observation/` | `KoihimeFrameCapture` 统一生成并校验 `1280 × 720` 截图；首页、任务面板和奖励弹窗分别由专用观察者解释，避免单个总观察者持续膨胀 |
 | 打开任务面板动作编排 | `src/HimeBot.App/Interaction/` | 点击前使用首页观察者确认 `Home`；点击后按 `200 ms` 间隔调用任务面板观察者，最长等待 `3 s`，仅在确认面板后成功 |
+| 领取任务奖励动作编排 | `src/HimeBot.App/Interaction/` | 只在任务面板奖励状态为 `Available` 时点击“一括完了”；依次验证领取弹窗、关闭弹窗和最终 `Unavailable` 状态，`Unknown`、观察失败或超时均安全停止 |
+| 从任务面板返回首页 | `src/HimeBot.App/Observation/Mission/`、`src/HimeBot.App/Interaction/` | 裁剪左上角搜索区并确认返回按钮；同时要求当前为任务面板，点击后最长等待 `3 s`，只有首页观察成功才报告返回完成 |
 | 日文单行 OCR | `src/HimeBot.Vision/Ocr/`、`src/HimeBot.Vision/tessdata/` | 已接入 WPF；真实资源 ROI 已正确识别 `236万/454万` |
 | 粮食文字规范化与数值解析 | `src/HimeBot.Game.Koihime/Domain/`、`src/HimeBot.Game.Koihime/Perception/` | 已接入现有 OCR 命令并完成构建；真实 ROI 的解析显示待人工验证 |
 
@@ -163,13 +165,20 @@ HimeBot.App/
 │  │  └─ HomeSceneObservationResult.cs
 │  ├─ Mission/
 │  │  ├─ MissionPanelObserver.cs
-│  │  └─ MissionPanelObservationResult.cs
+│  │  ├─ MissionPanelObservationResult.cs
+│  │  ├─ MissionBackButtonObserver.cs
+│  │  └─ MissionBackButtonObservationResult.cs
 │  └─ Reward/
 │     ├─ RewardReceiptDialogObserver.cs
 │     └─ RewardReceiptDialogObservationResult.cs
 ├─ Interaction/
 │  ├─ KoihimeMissionPanelOpener.cs
-│  └─ MissionPanelOpenResult.cs
+│  ├─ MissionPanelOpenResult.cs
+│  ├─ KoihimeMissionRewardClaimer.cs
+│  ├─ MissionRewardClaimOutcome.cs
+│  ├─ MissionRewardClaimResult.cs
+│  ├─ KoihimeMissionHomeNavigator.cs
+│  └─ MissionHomeNavigationResult.cs
 ├─ Views/
 │  ├─ MainWindow.xaml
 │  ├─ DashboardView.xaml
@@ -195,6 +204,12 @@ HimeBot.App/
 `KoihimeFrameCapture` 是各场景观察者共享的截图模块，隐藏诊断文件命名、WGC 调用和 `1280 × 720` 尺寸校验。`HomeSceneObserver`、`MissionPanelObserver` 与 `RewardReceiptDialogObserver` 分别只回答一个场景问题，每次观察都取得一张新截图，再组合 Vision 的通用证据与 Koihime 的游戏规则。任务面板观察者只在确认 `MissionPanel` 后分析固定区域 `(1070, 566, 141, 48)` 的平均颜色，并返回 `Available/Unavailable/Unknown`；颜色分析技术失败时保留已确认的面板状态，但把奖励状态安全降级为 `Unknown`。当前每种观察者只有一个生产实现，因此不创建对应的 C# `interface`。
 
 `KoihimeMissionPanelOpener` 是 App 内部的动作编排模块，对 ViewModel 只暴露 `OpenAsync`：每次调用先通过 `HomeSceneObserver` 取得新截图并确认首页，再调用 Windows 输入 adapter 点击 `1280 × 720` 客户区中的 `(1235, 565)`。点击提交后，该模块每隔 `200 ms` 调用 `MissionPanelObserver`，并以 `3 s` 为上限等待任务面板；只有目标场景出现才返回成功，观察失败或超时均返回失败，调用方取消则终止等待。它把固定坐标、轮询节奏、超时与后置条件隐藏在实现中，ViewModel 只处理命令和结果显示。当前只有一个打开实现，因此不创建 C# `interface`。
+
+`KoihimeMissionRewardClaimer` 是奖励领取动作编排模块，对 ViewModel 只暴露 `ClaimAsync`。它先使用 `MissionPanelObserver` 确认任务面板和奖励状态：`Unavailable` 作为正常的“没有奖励”结果返回，`Unknown` 安全停止，只有 `Available` 才点击“一括完了”中心点 `(1140, 590)`。点击后以 `200 ms` 间隔、`3 s` 上限等待 `RewardReceiptDialogObserver` 确认弹窗，再点击“閉じる”中心点 `(640, 632)`，最后等待任务面板恢复且奖励状态变为 `Unavailable`。观察失败、输入失败或任一后置条件超时都返回失败。轮询、坐标和安全规则隐藏在模块实现中，观察者本身不执行输入；当前只有一个领取实现，因此不创建 C# `interface`。
+
+`MissionBackButtonObserver` 每次取得新的 `1280 × 720` 截图后，先裁剪左上角 `(15, 13, 76, 76)` 搜索区，再匹配从样本 `(27, 25, 50, 50)` 截取的返回按钮内部模板。匹配证据交给 `MissionBackButtonRecognizer`，只有分数不低于 `0.90` 且模板在搜索区内的位置接近 `(12, 12)`、X/Y 容差各为 `±5` 时才确认按钮可见。观察者只返回结果，不执行输入。
+
+`KoihimeMissionHomeNavigator` 对 ViewModel 只暴露 `NavigateAsync`。它先使用 `MissionPanelObserver` 确认任务面板，再使用 `MissionBackButtonObserver` 确认左上角按钮；任一前置条件不满足都不点击。确认后通过 Windows 输入 adapter 点击客户区 `(53, 50)`，并以 `200 ms` 间隔、`3 s` 上限调用 `HomeSceneObserver`；只有确认 `Home` 才报告成功。当前只有一个返回实现，因此不创建 C# `interface`。
 
 ### 5.2 HimeBot.Core
 
@@ -240,6 +255,8 @@ HimeBot.Game.Koihime/
    ├─ GrainStockParseResult.cs
    ├─ GrainStockParser.cs
    ├─ HomeSceneRecognizer.cs
+   ├─ MissionBackButtonRecognizer.cs
+   ├─ MissionBackButtonRecognitionResult.cs
    ├─ MissionRewardAvailabilityRecognizer.cs
    ├─ MissionRewardRecognitionResult.cs
    ├─ MissionPanelRecognizer.cs
@@ -253,7 +270,7 @@ HimeBot.Game.Koihime/
 
 `MissionPanelRecognizer` 根据任务面板固定标题模板的匹配分数与最佳位置生成 `MissionPanel/Unknown`。当前 `1280 × 720` 规则要求分数至少为 `0.90`，且位置在 `(24, 14)` 的 X/Y 各 `±5` 像素内。它与首页识别器一样只接收基础数值，不引用 Vision 或 WPF 类型；当前只有一个确定性实现，因此不增加 interface。
 
-`RewardReceiptDialogRecognizer` 使用弹窗中央“閉じる”按钮的模板分数和位置生成 `RewardReceiptDialog/Unknown`；`MissionRewardAvailabilityRecognizer` 根据任务面板“一括完了”固定区域的平均红色值生成 `Available/Unavailable/Unknown`。两者都只解释基础数值，不引用 OpenCV、Windows 或 WPF 类型。
+`RewardReceiptDialogRecognizer` 使用弹窗中央“閉じる”按钮的模板分数和位置生成 `RewardReceiptDialog/Unknown`；`MissionRewardAvailabilityRecognizer` 根据任务面板“一括完了”固定区域的平均红色值生成 `Available/Unavailable/Unknown`；`MissionBackButtonRecognizer` 根据左上角裁剪区域中的模板分数和相对位置判断返回按钮是否可见。它们都只解释基础数值，不引用 OpenCV、Windows 或 WPF 类型。
 
 后续目标结构：
 
@@ -398,7 +415,7 @@ HimeBot.Vision/
 
 `TesseractTextRecognizer` 当前加载输出目录中的 `tessdata/jpn.traineddata`，使用日文 LSTM 与单行分割模式，并返回 OCR 原文和平均置信度。App 直接注入这一生产实现；由于还没有第二个 OCR adapter 或测试 adapter，当前不创建 `ITextRecognizer`。
 
-`TemplateMatcher` 当前使用彩色 `CCoeffNormed` 在输入图片中寻找模板的最佳位置，并返回执行状态、分数、位置和模板尺寸。它不接受首页阈值，也不返回游戏场景；App 将这些通用视觉证据交给 Koihime 的 `HomeSceneRecognizer` 解释。当前只有一个 OpenCV 实现，因此不创建 `ITemplateMatcher`。仓库根目录的 `assets/koihime/templates/home-settings-icon.png` 在构建时复制到 App 输出目录，WPF 诊断命令显示匹配证据和场景结果。
+`TemplateMatcher` 当前使用彩色 `CCoeffNormed` 在输入图片中寻找模板的最佳位置，并返回执行状态、分数、位置和模板尺寸。它不接受游戏阈值，也不返回游戏场景；App 将通用视觉证据交给 Koihime 的相应判定器解释。当前只有一个 OpenCV 实现，因此不创建 `ITemplateMatcher`。仓库根目录的模板资源在构建时复制到 App 输出目录；返回按钮观察会先用 `ImagePreprocessor` 生成小型搜索区，再执行模板匹配。
 
 OCR adapter 只返回原始文字和置信度。空白清理、文字纠错、数值范围和游戏规则校验属于 `HimeBot.Game.Koihime`。
 

@@ -52,6 +52,9 @@ public partial class App : Application
         var missionPanelRecognizer =
             new MissionPanelRecognizer();
 
+        var missionBackButtonRecognizer =
+            new MissionBackButtonRecognizer();
+
         var rewardReceiptDialogRecognizer =
             new RewardReceiptDialogRecognizer();
 
@@ -76,6 +79,13 @@ public partial class App : Application
                 regionColorAnalyzer,
                 missionRewardAvailabilityRecognizer);
 
+        var missionBackButtonObserver =
+            new MissionBackButtonObserver(
+                frameCapture,
+                imagePreprocessor,
+                templateMatcher,
+                missionBackButtonRecognizer);
+
         var rewardReceiptDialogObserver =
             new RewardReceiptDialogObserver(
                 frameCapture,
@@ -86,6 +96,19 @@ public partial class App : Application
             new KoihimeMissionPanelOpener(
                 homeSceneObserver,
                 missionPanelObserver,
+                sendInputAdapter);
+
+        var missionRewardClaimer =
+            new KoihimeMissionRewardClaimer(
+                missionPanelObserver,
+                rewardReceiptDialogObserver,
+                sendInputAdapter);
+
+        var missionHomeNavigator =
+            new KoihimeMissionHomeNavigator(
+                missionPanelObserver,
+                missionBackButtonObserver,
+                homeSceneObserver,
                 sendInputAdapter);
 
         var textRecognizer = new TesseractTextRecognizer();
@@ -106,6 +129,8 @@ public partial class App : Application
             missionPanelObserver,
             rewardReceiptDialogObserver,
             missionPanelOpener,
+            missionRewardClaimer,
+            missionHomeNavigator,
             textRecognizer,
             grainStockParser);
         var mainWindow = new MainWindow

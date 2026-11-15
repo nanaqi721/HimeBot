@@ -40,6 +40,10 @@ public sealed class MainViewModel : ObservableObject
     private readonly RewardReceiptDialogObserver
         _rewardReceiptDialogObserver;
     private readonly KoihimeMissionPanelOpener _missionPanelOpener;
+    private readonly KoihimeMissionRewardClaimer
+        _missionRewardClaimer;
+    private readonly KoihimeMissionHomeNavigator
+        _missionHomeNavigator;
     private readonly TesseractTextRecognizer _textRecognizer;
     private readonly GrainStockParser _grainStockParser;
 
@@ -64,6 +68,8 @@ public sealed class MainViewModel : ObservableObject
         MissionPanelObserver missionPanelObserver,
         RewardReceiptDialogObserver rewardReceiptDialogObserver,
         KoihimeMissionPanelOpener missionPanelOpener,
+        KoihimeMissionRewardClaimer missionRewardClaimer,
+        KoihimeMissionHomeNavigator missionHomeNavigator,
         TesseractTextRecognizer textRecognizer,
         GrainStockParser grainStockParser)
     {
@@ -81,6 +87,8 @@ public sealed class MainViewModel : ObservableObject
         _rewardReceiptDialogObserver =
             rewardReceiptDialogObserver;
         _missionPanelOpener = missionPanelOpener;
+        _missionRewardClaimer = missionRewardClaimer;
+        _missionHomeNavigator = missionHomeNavigator;
         _textRecognizer = textRecognizer;
         _grainStockParser = grainStockParser;
 
@@ -140,6 +148,16 @@ public sealed class MainViewModel : ObservableObject
             new AsyncRelayCommand(
                 OpenMissionPanelAsync,
                 CanOpenMissionPanel);
+
+        ClaimMissionRewardCommand =
+            new AsyncRelayCommand(
+                ClaimMissionRewardAsync,
+                CanClaimMissionReward);
+
+        ReturnMissionToHomeCommand =
+            new AsyncRelayCommand(
+                ReturnMissionToHomeAsync,
+                CanReturnMissionToHome);
 
         TestMoveCursorCommand =
             new RelayCommand(
@@ -249,6 +267,10 @@ public sealed class MainViewModel : ObservableObject
     public IAsyncRelayCommand ObserveRewardReceiptDialogCommand { get; }
 
     public IAsyncRelayCommand OpenMissionPanelCommand { get; }
+
+    public IAsyncRelayCommand ClaimMissionRewardCommand { get; }
+
+    public IAsyncRelayCommand ReturnMissionToHomeCommand { get; }
 
     public IRelayCommand TestMoveCursorCommand { get; }
 
@@ -396,6 +418,12 @@ public sealed class MainViewModel : ObservableObject
             .NotifyCanExecuteChanged();
 
         OpenMissionPanelCommand
+            .NotifyCanExecuteChanged();
+
+        ClaimMissionRewardCommand
+            .NotifyCanExecuteChanged();
+
+        ReturnMissionToHomeCommand
             .NotifyCanExecuteChanged();
 
         TestMoveCursorCommand
@@ -605,6 +633,68 @@ public sealed class MainViewModel : ObservableObject
             SetLatestCapturePath(
                 result.ScreenshotPath);
         }
+
+        StatusMessage = result.Message;
+    }
+
+    private bool CanClaimMissionReward()
+    {
+        return _locatedGameWindow is not null;
+    }
+
+    private async Task ClaimMissionRewardAsync(
+        CancellationToken cancellationToken)
+    {
+        GameWindowInfo? window =
+            _locatedGameWindow;
+
+        if (window is null)
+        {
+            StatusMessage =
+                "请先查找游戏窗口。";
+
+            return;
+        }
+
+        MissionRewardClaimResult result =
+            await _missionRewardClaimer.ClaimAsync(
+                window,
+                cancellationToken);
+
+        ApplyObservationScreenshot(
+            result.ScreenshotPath);
+
+        StatusMessage =
+            $"任务奖励领取结果：{result.Outcome}。" +
+            $"{result.Message}";
+    }
+
+    private bool CanReturnMissionToHome()
+    {
+        return _locatedGameWindow is not null;
+    }
+
+    private async Task ReturnMissionToHomeAsync(
+        CancellationToken cancellationToken)
+    {
+        GameWindowInfo? window =
+            _locatedGameWindow;
+
+        if (window is null)
+        {
+            StatusMessage =
+                "请先查找游戏窗口。";
+
+            return;
+        }
+
+        MissionHomeNavigationResult result =
+            await _missionHomeNavigator.NavigateAsync(
+                window,
+                cancellationToken);
+
+        ApplyObservationScreenshot(
+            result.ScreenshotPath);
 
         StatusMessage = result.Message;
     }

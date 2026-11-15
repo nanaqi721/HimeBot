@@ -86,7 +86,23 @@ Height = 48
 - `KoihimeMissionPanelOpener` 点击前调用 `HomeSceneObserver`，点击后每隔 `200 ms` 调用 `MissionPanelObserver`，最长等待 `3 s`；只有确认任务面板后才报告成功。
 - 旧的 `KoihimeObserver` 与 `KoihimeObservationResult` 已删除，避免总观察器随着新场景持续膨胀。
 - 奖励弹窗模板 `reward-receipt-close-button.png` 为 `240 × 63`，取自参考位置 `(520, 601)`；可领取和不可领取按钮裁剪样本为 `141 × 48`，仅用于阈值校准，不在运行时执行模板匹配。
-- 分场景观察重构已经通过 x64 Debug 构建和测试命令：两次构建均为 `0` 个错误，首次重新编译显示 `2` 个既有 OpenCvSharp `CS9057` 警告，最终增量构建显示 `0` 个警告；三个新诊断入口和奖励判定尚待人工运行验证。
+- 分场景观察重构已经通过 x64 Debug 构建和测试命令；用户随后人工确认“观察首页”“观察任务面板”“观察领取弹窗”以及任务奖励 `Available/Unavailable` 判断均运行成功。
+
+### 本窗口完成的奖励领取任务
+
+- `MissionRewardClaimOutcome` 将最终结果分为 `Failed`、`NoRewardAvailable` 和 `Claimed`；没有奖励属于正常完成，不与技术失败混在一起。
+- `KoihimeMissionRewardClaimer` 对外只暴露 `ClaimAsync`，内部依次完成：确认 `MissionPanel + Available`、点击 `(1140, 590)` 的“一括完了”、等待奖励弹窗、点击 `(640, 632)` 的“閉じる”，以及等待 `MissionPanel + Unavailable`。
+- 初始奖励状态为 `Unavailable` 时直接返回 `NoRewardAvailable`；状态为 `Unknown`、观察失败、输入失败或任一后置条件在 `3 s` 内未出现时都安全返回 `Failed`，不继续提交输入。
+- `App.xaml.cs` 在组合根创建领取任务；`MainViewModel` 只调用 `ClaimAsync` 并显示结果；WPF 新增“领取任务奖励”命令按钮，观察者仍然不执行点击。
+- 奖励领取入口已经通过标准 x64 Debug 构建：`0` 个错误、`2` 个既有 OpenCvSharp `CS9057` 警告；真实领取流程尚待人工运行验证。
+
+### 本窗口完成的任务面板返回首页
+
+- 返回按钮模板 `mission-back-button.png` 为 `50 × 50`，从 `1280 × 720` 样本的 `(27, 25)` 截取，保留箭头与内层菱形并排除页面标题金线。
+- `MissionBackButtonObserver` 取得新截图后先裁剪 `(15, 13, 76, 76)` 搜索区，再执行模板匹配；`MissionBackButtonRecognizer` 要求分数 `>= 0.90`，且模板在搜索区内的位置接近 `(12, 12)`、X/Y 容差各为 `±5`。
+- `KoihimeMissionHomeNavigator` 点击前同时确认任务面板和返回按钮，任一条件不满足都不输入；确认后点击客户区 `(53, 50)`，再以 `200 ms` 间隔、`3 s` 上限等待 `HomeSceneObserver` 确认首页。
+- `App.xaml.cs` 已组装判定器、观察者和返回动作；`MainViewModel` 与 WPF 新增“返回主页”命令入口，观察者本身仍不执行点击。
+- 标准构建因正在运行的 `HimeBot.App`（PID 18796）锁定输出 DLL 而无法完成文件复制；同一代码使用独立输出目录 `C:\tmp\HimeBot-return-home-build\` 构建成功，结果为 `0` 个错误、`2` 个既有 OpenCvSharp `CS9057` 警告。真实模板分数和返回闭环尚待人工验证。
 
 ### 本窗口完成的 OCR 链路
 
@@ -156,7 +172,9 @@ dotnet test HimeBot.sln --configuration Debug --property:Platform=x64
 - `MissionPanelRecognizer` 与安全场景合并接线已通过标准 x64 Debug 构建：`0` 个错误、`2` 个既有 OpenCvSharp `CS9057` 警告；`dotnet test` 退出码为 `0`，但没有测试项目。用户已在构建后人工确认场景判断运行成功。
 - 任务面板打开后的后置条件轮询已在独立临时输出目录完成 x64 Debug 编译：`0` 个错误、`2` 个既有 OpenCvSharp `CS9057` 警告；同一临时输出目录下的 `dotnet test` 退出码为 `0`，但没有测试项目。随后用户已完成标准构建和人工验证，确认新闭环运行成功。
 - 重构前的精简观察结果和任务面板打开闭环曾通过标准构建与人工验证；当前任务面板打开器已改为分别使用 `HomeSceneObserver` 和 `MissionPanelObserver`，新接线已通过构建，等待再次人工复验。
-- 分场景观察重构后的标准 x64 Debug 构建与 `dotnet test` 均以退出码 `0` 完成；解决方案仍没有测试项目，三个新诊断入口需要人工运行验证。
+- 分场景观察重构后的标准 x64 Debug 构建与 `dotnet test` 均以退出码 `0` 完成；用户已经人工确认三个分场景诊断入口、奖励状态判断和任务面板打开闭环运行成功。
+- 奖励领取任务核心代码由用户手动录入后编译成功；接入组合根、ViewModel 和 WPF 按钮后再次完成标准 x64 Debug 构建，结果为 `0` 个错误、`2` 个既有 OpenCvSharp `CS9057` 警告。随后 `dotnet test` 以退出码 `0` 完成，但解决方案没有测试项目；领取动作尚待人工验证。
+- 任务面板返回首页代码在独立输出目录完成 x64 Debug 构建：`0` 个错误、`2` 个既有 OpenCvSharp `CS9057` 警告；同一输出目录下的 `dotnet test` 退出码为 `0`，但没有测试项目。标准输出目录当时被运行中的 HimeBot 锁定，这不是代码编译错误；关闭旧程序后仍需补跑标准构建。
 
 ## 当前未提交工作树
 
@@ -167,17 +185,18 @@ dotnet test HimeBot.sln --configuration Debug --property:Platform=x64
  M docs/project-structure.md
  M src/HimeBot.App/App.xaml.cs
  M src/HimeBot.App/HimeBot.App.csproj
- M src/HimeBot.App/Interaction/KoihimeMissionPanelOpener.cs
  M src/HimeBot.App/MainWindow.xaml
- D src/HimeBot.App/Observation/KoihimeObservationResult.cs
- D src/HimeBot.App/Observation/KoihimeObserver.cs
  M src/HimeBot.App/ViewModels/MainViewModel.cs
- M src/HimeBot.Game.Koihime/Domain/GameScene.cs
-?? src/HimeBot.App/Observation/Home/
-?? src/HimeBot.App/Observation/Mission/
-?? src/HimeBot.App/Observation/Reward/
-?? src/HimeBot.App/Observation/Shared/
-?? src/HimeBot.Game.Koihime/Perception/RewardReceiptDialogRecognizer.cs
+?? assets/koihime/templates/mission-back-button.png
+?? src/HimeBot.App/Interaction/KoihimeMissionHomeNavigator.cs
+?? src/HimeBot.App/Interaction/KoihimeMissionRewardClaimer.cs
+?? src/HimeBot.App/Interaction/MissionHomeNavigationResult.cs
+?? src/HimeBot.App/Interaction/MissionRewardClaimOutcome.cs
+?? src/HimeBot.App/Interaction/MissionRewardClaimResult.cs
+?? src/HimeBot.App/Observation/Mission/MissionBackButtonObservationResult.cs
+?? src/HimeBot.App/Observation/Mission/MissionBackButtonObserver.cs
+?? src/HimeBot.Game.Koihime/Perception/MissionBackButtonRecognitionResult.cs
+?? src/HimeBot.Game.Koihime/Perception/MissionBackButtonRecognizer.cs
 ```
 
 ## 本次会话交接摘要
@@ -190,7 +209,9 @@ dotnet test HimeBot.sln --configuration Debug --property:Platform=x64
 - App 使用 `KoihimeFrameCapture` 共享 WGC 截图和尺寸校验；`HomeSceneObserver`、`MissionPanelObserver` 与 `RewardReceiptDialogObserver` 各自隐藏对应场景的视觉匹配与解释细节。当前每类只有一个生产实现，因此暂不增加 C# `interface`。
 - 任务入口无奖励与有奖励模板均为 `90 × 90`，但不再参与运行时判定；任务入口点击点取样本区域中心 `(1235, 565)`，且只在最新观察结果为 `Home` 时提交输入。
 - 任务面板固定标题模板为 `310 × 74`；`MissionPanelRecognizer` 使用分数 `>= 0.90`、位置接近 `(24, 14)` 且 X/Y 容差各为 `±5` 的规则生成 `MissionPanel/Unknown`，该判断本身不触发输入。
-- `KoihimeMissionPanelOpener` 点击前使用首页观察者确认前置条件，点击后每隔 `200 ms` 使用任务面板观察者验证后置条件，最长等待 `3 s`；旧接线曾完成人工验证，新拆分接线等待人工复验。
+- `KoihimeMissionPanelOpener` 点击前使用首页观察者确认前置条件，点击后每隔 `200 ms` 使用任务面板观察者验证后置条件，最长等待 `3 s`；分场景接线已完成构建和人工验证。
+- `KoihimeMissionRewardClaimer` 组合任务面板观察者、奖励弹窗观察者和输入 adapter，完成两次受保护点击与两个后置条件轮询；领取入口已接入 WPF 并通过构建，等待人工运行验证。
+- `MissionBackButtonObserver` 在左上角小型搜索区中匹配返回按钮；`KoihimeMissionHomeNavigator` 额外要求当前为任务面板，并在点击后验证首页。独立输出目录构建已通过，标准构建和人工运行验证待完成。
 - 首页判定规则暂定为分数 `>= 0.75`，且位置接近 `(948, 535)`、X/Y 容差各为 `±5`；该规则目前仅适用于 `1280 × 720` 客户区截图。
 - 安全规则不变：`Unknown` 不触发鼠标输入，不采用“识别不到就移动到中心双击”的恢复方案；待机动画恢复策略应在观察循环设计时另行讨论。
 - 当前没有 xUnit 测试项目。`dotnet test` 退出码为 `0` 只代表还原/项目加载成功，没有自动测试用例可报告。
@@ -199,14 +220,16 @@ dotnet test HimeBot.sln --configuration Debug --property:Platform=x64
 
 1. 阅读 `AGENTS.md`、本文档和 `docs/project-structure.md`。
 2. 执行 `git status --short`，确认上述未提交文件仍在；保留用户改动。
-3. 将游戏客户区保持为 `1280 × 720`，依次人工验证“观察首页”“观察任务面板”“观察领取弹窗”三个诊断按钮。
-4. 在可领取任务面板确认结果为 `MissionPanel + Available`，在领取结束后的面板确认结果为 `MissionPanel + Unavailable`；如阈值不稳定，记录状态栏中的平均 RGB 后再调整。
-5. 再次人工验证“打开任务”仍满足：首页确认后才点击，点击后必须确认任务面板。
-6. 上述观察结果稳定后，再实现最小的奖励领取任务；领取任务应组合任务面板观察者与领取弹窗观察者，不把点击和重试塞入观察者。
+3. 将游戏客户区保持为 `1280 × 720`，在非任务面板点击“领取任务奖励”，确认返回 `Failed` 且没有输入。
+4. 在按钮变暗的任务面板点击领取，确认返回 `NoRewardAvailable` 且没有输入。
+5. 在按钮明亮的任务面板点击领取，确认自动点击“一括完了”、识别并关闭弹窗，最后返回 `Claimed`。
+6. 关闭旧版 HimeBot，补跑标准 x64 Debug 构建；在任务面板点击“返回主页”，确认返回按钮被点击且最终状态显示首页已确认。
+7. 在首页或其他不满足任务面板前置条件的画面点击“返回主页”，确认不提交输入；如匹配失败，记录搜索区图片、分数和位置后再校准阈值。
+8. 如出现 `Unknown` 或超时，保留状态栏消息和最后截图；先根据证据定位观察或时序问题，不放宽安全点击条件。
 
 ## 下一条主线
 
-分场景观察重构后，下一条主线是先用已有三个样本验证观察结果，再实现奖励领取任务：
+奖励领取与任务面板返回首页均已接线；下一条主线是依次人工验证两个闭环：
 
 ```text
 MissionPanelObserver 确认 MissionPanel + Available
@@ -214,6 +237,11 @@ MissionPanelObserver 确认 MissionPanel + Available
     → RewardReceiptDialogObserver 确认领取弹窗
     → 奖励任务点击“閉じる”
     → MissionPanelObserver 确认 MissionPanel + Unavailable
+
+MissionPanelObserver 确认 MissionPanel
+    → MissionBackButtonObserver 确认返回按钮
+    → 返回任务点击左上角按钮
+    → HomeSceneObserver 确认 Home
 ```
 
-当前观察和点击坐标仅适用于 `1280 × 720` 客户区。程序不会判断首页红色感叹号，也不会根据首页奖励状态决定是否进入任务面板。任务面板打开后的状态轮询与超时已实现；奖励领取点击、弹窗关闭、自动重试和恢复尚未实现。
+当前观察和点击坐标仅适用于 `1280 × 720` 客户区。程序不会判断首页红色感叹号，也不会根据首页奖励状态决定是否进入任务面板。任务面板打开、奖励领取和任务面板返回首页均已实现有限轮询和安全超时；把这些动作组合成完整自动任务、额外重试和恢复尚未实现。

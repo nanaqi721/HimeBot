@@ -112,9 +112,10 @@ HimeBot.Platform.Windows ──> HimeBot.Core
 | 单帧截图与 Windows Graphics Capture | `src/HimeBot.Platform.Windows/ScreenCapture/` | WGC 遮挡隔离与客户区动态裁剪均已人工运行验证 |
 | 客户区坐标鼠标移动与点击 | `src/HimeBot.Platform.Windows/Input/` | `SendInput` 移动和左键点击均已实现并人工验证 |
 | 灰度图、Otsu 二值图与矩形 ROI 裁剪 | `src/HimeBot.Vision/ImageProcessing/` | 已通过 MVVM 命令接入 WPF；资源数字 ROI 已人工验证 |
-| OpenCV 模板匹配 | `src/HimeBot.Vision/Matching/`、`assets/koihime/templates/` | 首页模板诊断已人工验证；任务入口奖励状态样本仅保留为实验记录；新增 `310 × 74` 的任务面板固定标题模板 |
-| 一次场景观察编排 | `src/HimeBot.App/Observation/` | 已组合 WGC 截图、尺寸校验、首页与任务面板判定，并安全合并为 `Home/MissionPanel/Unknown`；对调用方只返回执行状态、最终场景、说明与截图路径 |
-| 打开任务面板动作编排 | `src/HimeBot.App/Interaction/` | 每次点击前重新观察，仅在 `Home` 时点击客户区固定坐标 `(1235, 565)`；点击后按 `200 ms` 间隔观察，最长等待 `3 s`，仅在出现 `MissionPanel` 时成功 |
+| OpenCV 模板匹配 | `src/HimeBot.Vision/Matching/`、`assets/koihime/templates/` | 首页和任务面板模板已人工验证；新增奖励弹窗“閉じる”模板，等待真实运行复验 |
+| 固定区域颜色分析 | `src/HimeBot.Vision/ColorAnalysis/` | 返回通用平均 RGB 证据；任务面板观察者使用红色通道判断“一括完了”的可领取状态 |
+| 分场景观察 | `src/HimeBot.App/Observation/` | `KoihimeFrameCapture` 统一生成并校验 `1280 × 720` 截图；首页、任务面板和奖励弹窗分别由专用观察者解释，避免单个总观察者持续膨胀 |
+| 打开任务面板动作编排 | `src/HimeBot.App/Interaction/` | 点击前使用首页观察者确认 `Home`；点击后按 `200 ms` 间隔调用任务面板观察者，最长等待 `3 s`，仅在确认面板后成功 |
 | 日文单行 OCR | `src/HimeBot.Vision/Ocr/`、`src/HimeBot.Vision/tessdata/` | 已接入 WPF；真实资源 ROI 已正确识别 `236万/454万` |
 | 粮食文字规范化与数值解析 | `src/HimeBot.Game.Koihime/Domain/`、`src/HimeBot.Game.Koihime/Perception/` | 已接入现有 OCR 命令并完成构建；真实 ROI 的解析显示待人工验证 |
 
@@ -154,8 +155,18 @@ HimeBot.App/
 ├─ App.xaml
 ├─ App.xaml.cs
 ├─ Observation/
-│  ├─ KoihimeObserver.cs
-│  └─ KoihimeObservationResult.cs
+│  ├─ Shared/
+│  │  ├─ KoihimeFrameCapture.cs
+│  │  └─ KoihimeFrameCaptureResult.cs
+│  ├─ Home/
+│  │  ├─ HomeSceneObserver.cs
+│  │  └─ HomeSceneObservationResult.cs
+│  ├─ Mission/
+│  │  ├─ MissionPanelObserver.cs
+│  │  └─ MissionPanelObservationResult.cs
+│  └─ Reward/
+│     ├─ RewardReceiptDialogObserver.cs
+│     └─ RewardReceiptDialogObservationResult.cs
 ├─ Interaction/
 │  ├─ KoihimeMissionPanelOpener.cs
 │  └─ MissionPanelOpenResult.cs
@@ -181,9 +192,9 @@ HimeBot.App/
 - ViewModel 通过观察或自动化模块的入口启动工作，不在自身内部编排底层步骤。
 - 自动化核心不依赖 `Window`、`Dispatcher`、`BitmapSource` 等 WPF 类型。
 
-`KoihimeObserver` 当前是 App 内部的一次观察编排模块，对 ViewModel 只暴露 `ObserveAsync`：内部生成截图路径，依次调用 Windows 截图、Vision 的首页与任务面板模板匹配，以及 Koihime 的两个场景识别模块，并返回 `KoihimeObservationResult`。结果只包含 `IsSuccess`、`Scene`、`Message` 和 `ScreenshotPath`；模板分数、位置、截图尺寸与模板尺寸属于实现细节，不暴露给调用方。它只在首页识别器命中时返回 `Home`，只在任务面板识别器命中时返回 `MissionPanel`；两者同时命中或均未命中都返回 `Unknown`。`IsSuccess = false` 时 `Scene` 固定为 `Unknown`，用于区分技术失败与成功执行但无法识别的场景。任务入口的有奖励与无奖励模板不参与运行时匹配。该模块放在 App 是因为当前只有 App 同时引用 Platform、Vision 与 Game；实现本身不引用 WPF 类型。当前只有一个生产实现，也没有确定性观察 adapter，因此暂不创建 `IKoihimeObserver`。当截图和模板匹配出现生产与确定性测试两个 adapters 时，再建立 Core seam，并重新评估该模块的位置。
+`KoihimeFrameCapture` 是各场景观察者共享的截图模块，隐藏诊断文件命名、WGC 调用和 `1280 × 720` 尺寸校验。`HomeSceneObserver`、`MissionPanelObserver` 与 `RewardReceiptDialogObserver` 分别只回答一个场景问题，每次观察都取得一张新截图，再组合 Vision 的通用证据与 Koihime 的游戏规则。任务面板观察者只在确认 `MissionPanel` 后分析固定区域 `(1070, 566, 141, 48)` 的平均颜色，并返回 `Available/Unavailable/Unknown`；颜色分析技术失败时保留已确认的面板状态，但把奖励状态安全降级为 `Unknown`。当前每种观察者只有一个生产实现，因此不创建对应的 C# `interface`。
 
-`KoihimeMissionPanelOpener` 是 App 内部的动作编排模块，对 ViewModel 只暴露 `OpenAsync`：每次调用先通过 `KoihimeObserver` 获取最新场景证据；观察失败或结果为 `Unknown` 时安全停止，只有确认 `Home` 后才调用 Windows 输入 adapter 点击 `1280 × 720` 客户区中的 `(1235, 565)`。点击提交后，该模块每隔 `200 ms` 重新观察一次，并以 `3 s` 为上限等待 `MissionPanel`；只有目标场景出现才返回成功，观察失败或超时均返回失败，调用方取消则终止等待。它把固定坐标、轮询节奏、超时与后置条件隐藏在实现中，ViewModel 只处理命令和结果显示。当前只有一个打开实现，因此不创建 C# `interface`。
+`KoihimeMissionPanelOpener` 是 App 内部的动作编排模块，对 ViewModel 只暴露 `OpenAsync`：每次调用先通过 `HomeSceneObserver` 取得新截图并确认首页，再调用 Windows 输入 adapter 点击 `1280 × 720` 客户区中的 `(1235, 565)`。点击提交后，该模块每隔 `200 ms` 调用 `MissionPanelObserver`，并以 `3 s` 为上限等待任务面板；只有目标场景出现才返回成功，观察失败或超时均返回失败，调用方取消则终止等待。它把固定坐标、轮询节奏、超时与后置条件隐藏在实现中，ViewModel 只处理命令和结果显示。当前只有一个打开实现，因此不创建 C# `interface`。
 
 ### 5.2 HimeBot.Core
 
@@ -223,12 +234,16 @@ HimeBot.Core/
 HimeBot.Game.Koihime/
 ├─ Domain/
 │  ├─ GameScene.cs
-│  └─ GrainStock.cs
+│  ├─ GrainStock.cs
+│  └─ MissionRewardAvailability.cs
 └─ Perception/
    ├─ GrainStockParseResult.cs
    ├─ GrainStockParser.cs
    ├─ HomeSceneRecognizer.cs
+   ├─ MissionRewardAvailabilityRecognizer.cs
+   ├─ MissionRewardRecognitionResult.cs
    ├─ MissionPanelRecognizer.cs
+   ├─ RewardReceiptDialogRecognizer.cs
    └─ SceneRecognitionResult.cs
 ```
 
@@ -237,6 +252,8 @@ HimeBot.Game.Koihime/
 `HomeSceneRecognizer` 根据首页模板的匹配分数与最佳位置生成 `Home/Unknown`。当前 `1280 × 720` 规则要求分数至少为 `0.75`，且位置在 `(948, 535)` 的 X/Y 各 `±5` 像素内。它只接收基础数值，不引用 Vision 或 WPF 类型；App 负责把 `TemplateMatchResult` 中的证据传入该模块并显示结果。当前只有一个确定性识别实现，不增加 interface，`Unknown` 不触发输入操作。
 
 `MissionPanelRecognizer` 根据任务面板固定标题模板的匹配分数与最佳位置生成 `MissionPanel/Unknown`。当前 `1280 × 720` 规则要求分数至少为 `0.90`，且位置在 `(24, 14)` 的 X/Y 各 `±5` 像素内。它与首页识别器一样只接收基础数值，不引用 Vision 或 WPF 类型；当前只有一个确定性实现，因此不增加 interface。
+
+`RewardReceiptDialogRecognizer` 使用弹窗中央“閉じる”按钮的模板分数和位置生成 `RewardReceiptDialog/Unknown`；`MissionRewardAvailabilityRecognizer` 根据任务面板“一括完了”固定区域的平均红色值生成 `Available/Unavailable/Unknown`。两者都只解释基础数值，不引用 OpenCV、Windows 或 WPF 类型。
 
 后续目标结构：
 
@@ -250,8 +267,9 @@ HimeBot.Game.Koihime/
 │  ├─ TargetId.cs
 │  └─ RecognitionEvidence.cs
 ├─ Perception/
-│  ├─ KoihimeObserver.cs
-│  ├─ SceneRecognizer.cs
+│  ├─ HomeSceneRecognizer.cs
+│  ├─ MissionPanelRecognizer.cs
+│  ├─ RewardReceiptDialogRecognizer.cs
 │  └─ GrainStockParser.cs
 ├─ Interaction/
 │  ├─ IntentExecutor.cs
@@ -358,6 +376,9 @@ WGC 选型、Direct3D/WinRT 桥接和客户区裁剪约束见 `docs/decisions/00
 
 ```text
 HimeBot.Vision/
+├─ ColorAnalysis/
+│  ├─ RegionColorAnalyzer.cs
+│  └─ RegionColorAnalysisResult.cs
 ├─ ImageProcessing/
 │  ├─ ImagePreprocessor.cs
 │  └─ ImageProcessingResult.cs
@@ -372,6 +393,8 @@ HimeBot.Vision/
 ```
 
 `ImagePreprocessor` 当前对外提供异步灰度副本、Otsu 二值副本和矩形 ROI 副本操作，隐藏 OpenCV 原生库加载、路径与区域边界检查、图片读取、输出目录创建、资源释放和异常转换。App 通过 MVVM 命令处理最近一次成功截图，并将诊断图片保存到 `%LocalAppData%/HimeBot/processed/`。当前资源数字诊断按钮使用 `1280 × 720` 参考截图上的临时坐标；区域稳定后再移入 Koihime 专用配置。
+
+`RegionColorAnalyzer` 读取调用方指定的图片矩形区域并返回平均 RGB 数值，只负责通用颜色证据，不包含“一括完了”或奖励状态等游戏语义。App 的任务面板观察者把红色通道证据交给 Koihime 的判定模块解释。
 
 `TesseractTextRecognizer` 当前加载输出目录中的 `tessdata/jpn.traineddata`，使用日文 LSTM 与单行分割模式，并返回 OCR 原文和平均置信度。App 直接注入这一生产实现；由于还没有第二个 OCR adapter 或测试 adapter，当前不创建 `ITextRecognizer`。
 

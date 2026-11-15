@@ -7,5 +7,6 @@ public enum GameScene
 {
     Unknown,
     Home,
-    MissionPanel
+    MissionPanel,
+    RewardReceiptDialog
 }

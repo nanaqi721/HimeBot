@@ -105,22 +105,23 @@
 
             <Button Margin="0,0,8,0"
                     Padding="16,6"
-                    Content="观察当前场景"
-                    Command="{Binding ObserveGameSceneCommand}" />
+                    Content="观察首页"
+                    Command="{Binding ObserveHomeSceneCommand}" />
 
             <Button Margin="0,0,8,0"
                     Padding="16,6"
-                    Content="匹配首页模板"
-                    Command="{Binding MatchHomeTemplateCommand}" />
+                    Content="观察任务面板"
+                    Command="{Binding ObserveMissionPanelCommand}" />
 
             <Button Margin="0,0,8,0"
-            Padding="16,6"
-            Content="设置游戏置顶"
-            Command="{Binding SetGameWindowTopmostCommand}" />
+                    Padding="16,6"
+                    Content="观察领取弹窗"
+                    Command="{Binding ObserveRewardReceiptDialogCommand}" />
 
-            <Button Padding="16,6"
-            Content="取消游戏置顶"
-            Command="{Binding RemoveGameWindowTopmostCommand}" />
+            <Button
+                    Padding="16,6"
+                    Content="匹配首页模板"
+                    Command="{Binding MatchHomeTemplateCommand}" />
 
         </StackPanel>
 
@@ -128,6 +129,16 @@
             Margin="0,8,0,0"
             HorizontalAlignment="Right"
             Orientation="Horizontal">
+
+            <Button Margin="0,0,8,0"
+                    Padding="16,6"
+                    Content="设置游戏置顶"
+                    Command="{Binding SetGameWindowTopmostCommand}" />
+
+            <Button Margin="0,0,8,0"
+                    Padding="16,6"
+                    Content="取消游戏置顶"
+                    Command="{Binding RemoveGameWindowTopmostCommand}" />
 
             <Button Padding="16,6"
                     Content="打开任务"

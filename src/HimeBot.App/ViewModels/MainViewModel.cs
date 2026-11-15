@@ -2,7 +2,9 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using HimeBot.App.FilePicking;
 using HimeBot.App.Interaction;
-using HimeBot.App.Observation;
+using HimeBot.App.Observation.Home;
+using HimeBot.App.Observation.Mission;
+using HimeBot.App.Observation.Reward;
 using HimeBot.Core.Launching;
 using HimeBot.Core.Ports;
 using HimeBot.Core.Windowing;
@@ -33,7 +35,10 @@ public sealed class MainViewModel : ObservableObject
     private readonly ImagePreprocessor _imagePreprocessor;
     private readonly TemplateMatcher _templateMatcher;
     private readonly HomeSceneRecognizer _homeSceneRecognizer;
-    private readonly KoihimeObserver _koihimeObserver;
+    private readonly HomeSceneObserver _homeSceneObserver;
+    private readonly MissionPanelObserver _missionPanelObserver;
+    private readonly RewardReceiptDialogObserver
+        _rewardReceiptDialogObserver;
     private readonly KoihimeMissionPanelOpener _missionPanelOpener;
     private readonly TesseractTextRecognizer _textRecognizer;
     private readonly GrainStockParser _grainStockParser;
@@ -55,7 +60,9 @@ public sealed class MainViewModel : ObservableObject
         ImagePreprocessor imagePreprocessor,
         TemplateMatcher templateMatcher,
         HomeSceneRecognizer homeSceneRecognizer,
-        KoihimeObserver koihimeObserver,
+        HomeSceneObserver homeSceneObserver,
+        MissionPanelObserver missionPanelObserver,
+        RewardReceiptDialogObserver rewardReceiptDialogObserver,
         KoihimeMissionPanelOpener missionPanelOpener,
         TesseractTextRecognizer textRecognizer,
         GrainStockParser grainStockParser)
@@ -69,7 +76,10 @@ public sealed class MainViewModel : ObservableObject
         _imagePreprocessor = imagePreprocessor;
         _templateMatcher = templateMatcher;
         _homeSceneRecognizer = homeSceneRecognizer;
-        _koihimeObserver = koihimeObserver;
+        _homeSceneObserver = homeSceneObserver;
+        _missionPanelObserver = missionPanelObserver;
+        _rewardReceiptDialogObserver =
+            rewardReceiptDialogObserver;
         _missionPanelOpener = missionPanelOpener;
         _textRecognizer = textRecognizer;
         _grainStockParser = grainStockParser;
@@ -111,10 +121,20 @@ public sealed class MainViewModel : ObservableObject
                 CaptureGameScreenshotAsync,
                 CanCaptureGameScreenshot);
 
-        ObserveGameSceneCommand =
+        ObserveHomeSceneCommand =
             new AsyncRelayCommand(
-                ObserveGameSceneAsync,
-                CanObserveGameScene);
+                ObserveHomeSceneAsync,
+                CanObserveScene);
+
+        ObserveMissionPanelCommand =
+            new AsyncRelayCommand(
+                ObserveMissionPanelAsync,
+                CanObserveScene);
+
+        ObserveRewardReceiptDialogCommand =
+            new AsyncRelayCommand(
+                ObserveRewardReceiptDialogAsync,
+                CanObserveScene);
 
         OpenMissionPanelCommand =
             new AsyncRelayCommand(
@@ -222,7 +242,11 @@ public sealed class MainViewModel : ObservableObject
         get;
     }
 
-    public IAsyncRelayCommand ObserveGameSceneCommand { get; }
+    public IAsyncRelayCommand ObserveHomeSceneCommand { get; }
+
+    public IAsyncRelayCommand ObserveMissionPanelCommand { get; }
+
+    public IAsyncRelayCommand ObserveRewardReceiptDialogCommand { get; }
 
     public IAsyncRelayCommand OpenMissionPanelCommand { get; }
 
@@ -362,7 +386,13 @@ public sealed class MainViewModel : ObservableObject
         CaptureGameScreenshotCommand
             .NotifyCanExecuteChanged();
 
-        ObserveGameSceneCommand
+        ObserveHomeSceneCommand
+            .NotifyCanExecuteChanged();
+
+        ObserveMissionPanelCommand
+            .NotifyCanExecuteChanged();
+
+        ObserveRewardReceiptDialogCommand
             .NotifyCanExecuteChanged();
 
         OpenMissionPanelCommand
@@ -449,12 +479,12 @@ public sealed class MainViewModel : ObservableObject
             $"图片尺寸：{result.Width} × {result.Height}。";
     }
 
-    private bool CanObserveGameScene()
+    private bool CanObserveScene()
     {
         return _locatedGameWindow is not null;
     }
 
-    private async Task ObserveGameSceneAsync(
+    private async Task ObserveHomeSceneAsync(
         CancellationToken cancellationToken)
     {
         GameWindowInfo? window =
@@ -468,27 +498,81 @@ public sealed class MainViewModel : ObservableObject
             return;
         }
 
-        KoihimeObservationResult result =
-            await _koihimeObserver.ObserveAsync(
+        HomeSceneObservationResult result =
+            await _homeSceneObserver.ObserveAsync(
                 window,
                 cancellationToken);
 
-        if (!string.IsNullOrWhiteSpace(
-                result.ScreenshotPath))
-        {
-            SetLatestCapturePath(
-                result.ScreenshotPath);
-        }
-
-        if (!result.IsSuccess)
-        {
-            StatusMessage = result.Message;
-            return;
-        }
+        ApplyObservationScreenshot(
+            result.ScreenshotPath);
 
         StatusMessage =
             $"{result.Message} " +
             $"截图路径：{result.ScreenshotPath}。";
+    }
+
+    private async Task ObserveMissionPanelAsync(
+        CancellationToken cancellationToken)
+    {
+        GameWindowInfo? window =
+            _locatedGameWindow;
+
+        if (window is null)
+        {
+            StatusMessage =
+                "请先查找游戏窗口。";
+
+            return;
+        }
+
+        MissionPanelObservationResult result =
+            await _missionPanelObserver.ObserveAsync(
+                window,
+                cancellationToken);
+
+        ApplyObservationScreenshot(
+            result.ScreenshotPath);
+
+        StatusMessage =
+            $"{result.Message} " +
+            $"截图路径：{result.ScreenshotPath}。";
+    }
+
+    private async Task ObserveRewardReceiptDialogAsync(
+        CancellationToken cancellationToken)
+    {
+        GameWindowInfo? window =
+            _locatedGameWindow;
+
+        if (window is null)
+        {
+            StatusMessage =
+                "请先查找游戏窗口。";
+
+            return;
+        }
+
+        RewardReceiptDialogObservationResult result =
+            await _rewardReceiptDialogObserver.ObserveAsync(
+                window,
+                cancellationToken);
+
+        ApplyObservationScreenshot(
+            result.ScreenshotPath);
+
+        StatusMessage =
+            $"{result.Message} " +
+            $"截图路径：{result.ScreenshotPath}。";
+    }
+
+    private void ApplyObservationScreenshot(
+        string? screenshotPath)
+    {
+        if (!string.IsNullOrWhiteSpace(screenshotPath))
+        {
+            SetLatestCapturePath(
+                screenshotPath);
+        }
     }
 
     private bool CanOpenMissionPanel()

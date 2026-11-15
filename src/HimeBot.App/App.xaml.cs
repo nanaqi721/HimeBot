@@ -2,13 +2,17 @@
 
 using HimeBot.App.FilePicking;
 using HimeBot.App.Interaction;
-using HimeBot.App.Observation;
+using HimeBot.App.Observation.Home;
+using HimeBot.App.Observation.Mission;
+using HimeBot.App.Observation.Reward;
+using HimeBot.App.Observation.Shared;
 using HimeBot.App.ViewModels;
 using HimeBot.Game.Koihime.Perception;
 using HimeBot.Platform.Windows.Input;
 using HimeBot.Platform.Windows.Launching;
 using HimeBot.Platform.Windows.ScreenCapture;
 using HimeBot.Platform.Windows.Windowing;
+using HimeBot.Vision.ColorAnalysis;
 using HimeBot.Vision.ImageProcessing;
 using HimeBot.Vision.Matching;
 using HimeBot.Vision.Ocr;
@@ -40,21 +44,48 @@ public partial class App : Application
 
         var templateMatcher = new TemplateMatcher();
 
+        var regionColorAnalyzer =
+            new RegionColorAnalyzer();
+
         var homeSceneRecognizer = new HomeSceneRecognizer();
 
         var missionPanelRecognizer =
             new MissionPanelRecognizer();
 
-        var koihimeObserver =
-            new KoihimeObserver(
-                gameScreenShotCapture,
+        var rewardReceiptDialogRecognizer =
+            new RewardReceiptDialogRecognizer();
+
+        var missionRewardAvailabilityRecognizer =
+            new MissionRewardAvailabilityRecognizer();
+
+        var frameCapture =
+            new KoihimeFrameCapture(
+                gameScreenShotCapture);
+
+        var homeSceneObserver =
+            new HomeSceneObserver(
+                frameCapture,
                 templateMatcher,
-                homeSceneRecognizer,
-                missionPanelRecognizer);
+                homeSceneRecognizer);
+
+        var missionPanelObserver =
+            new MissionPanelObserver(
+                frameCapture,
+                templateMatcher,
+                missionPanelRecognizer,
+                regionColorAnalyzer,
+                missionRewardAvailabilityRecognizer);
+
+        var rewardReceiptDialogObserver =
+            new RewardReceiptDialogObserver(
+                frameCapture,
+                templateMatcher,
+                rewardReceiptDialogRecognizer);
 
         var missionPanelOpener =
             new KoihimeMissionPanelOpener(
-                koihimeObserver,
+                homeSceneObserver,
+                missionPanelObserver,
                 sendInputAdapter);
 
         var textRecognizer = new TesseractTextRecognizer();
@@ -71,7 +102,9 @@ public partial class App : Application
             imagePreprocessor,
             templateMatcher,
             homeSceneRecognizer,
-            koihimeObserver,
+            homeSceneObserver,
+            missionPanelObserver,
+            rewardReceiptDialogObserver,
             missionPanelOpener,
             textRecognizer,
             grainStockParser);

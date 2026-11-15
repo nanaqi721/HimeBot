@@ -33,6 +33,10 @@
 	  <Link>assets\koihime\templates\mission-panel-header.png</Link>
 	  <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+	<None Include="..\..\assets\koihime\templates\reward-receipt-close-button.png">
+      <Link>assets\koihime\templates\reward-receipt-close-button.png</Link>
+	  <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+	</None>
   </ItemGroup>
 
 </Project>

@@ -1,6 +1,6 @@
-using HimeBot.App.Observation;
+using HimeBot.App.Observation.Home;
+using HimeBot.App.Observation.Mission;
 using HimeBot.Core.Windowing;
-using HimeBot.Game.Koihime.Domain;
 using HimeBot.Platform.Windows.Input;
 
 namespace HimeBot.App.Interaction;
@@ -19,17 +19,21 @@ public sealed class KoihimeMissionPanelOpener
     private static readonly TimeSpan VerificationInterval =
         TimeSpan.FromMilliseconds(200);
 
-    private readonly KoihimeObserver _observer;
+    private readonly HomeSceneObserver _homeSceneObserver;
+    private readonly MissionPanelObserver _missionPanelObserver;
     private readonly SendInputAdapter _inputAdapter;
 
     public KoihimeMissionPanelOpener(
-        KoihimeObserver observer,
+        HomeSceneObserver homeSceneObserver,
+        MissionPanelObserver missionPanelObserver,
         SendInputAdapter inputAdapter)
     {
-        ArgumentNullException.ThrowIfNull(observer);
+        ArgumentNullException.ThrowIfNull(homeSceneObserver);
+        ArgumentNullException.ThrowIfNull(missionPanelObserver);
         ArgumentNullException.ThrowIfNull(inputAdapter);
 
-        _observer = observer;
+        _homeSceneObserver = homeSceneObserver;
+        _missionPanelObserver = missionPanelObserver;
         _inputAdapter = inputAdapter;
     }
 
@@ -39,8 +43,8 @@ public sealed class KoihimeMissionPanelOpener
     {
         ArgumentNullException.ThrowIfNull(window);
 
-        KoihimeObservationResult observation =
-            await _observer.ObserveAsync(
+        HomeSceneObservationResult observation =
+            await _homeSceneObserver.ObserveAsync(
                 window,
                 cancellationToken);
 
@@ -53,7 +57,7 @@ public sealed class KoihimeMissionPanelOpener
                 observation.ScreenshotPath);
         }
 
-        if (observation.Scene != GameScene.Home)
+        if (!observation.IsHome)
         {
             return new MissionPanelOpenResult(
                 false,
@@ -93,7 +97,7 @@ public sealed class KoihimeMissionPanelOpener
         string? latestScreenshotPath =
             preClickScreenshotPath;
 
-        GameScene latestScene = GameScene.Home;
+        bool latestIsMissionPanel = false;
 
         using var verificationCancellation =
             CancellationTokenSource
@@ -111,8 +115,8 @@ public sealed class KoihimeMissionPanelOpener
                     VerificationInterval,
                     verificationCancellation.Token);
 
-                KoihimeObservationResult observation =
-                    await _observer.ObserveAsync(
+                MissionPanelObservationResult observation =
+                    await _missionPanelObserver.ObserveAsync(
                         window,
                         verificationCancellation.Token);
 
@@ -132,15 +136,17 @@ public sealed class KoihimeMissionPanelOpener
                         latestScreenshotPath);
                 }
 
-                latestScene =
-                    observation.Scene;
+                latestIsMissionPanel =
+                    observation.IsMissionPanel;
 
-                if (latestScene == GameScene.MissionPanel)
+                if (latestIsMissionPanel)
                 {
                     return new MissionPanelOpenResult(
                         true,
                         "任务入口点击已提交，" +
-                        "并已确认任务面板打开。",
+                        "并已确认任务面板打开；" +
+                        $"当前奖励状态：" +
+                        $"{observation.RewardAvailability}。",
                         latestScreenshotPath);
                 }
             }
@@ -153,7 +159,8 @@ public sealed class KoihimeMissionPanelOpener
                 $"任务入口点击已提交，但在 " +
                 $"{VerificationTimeout.TotalSeconds:0.#} 秒内" +
                 $"没有确认任务面板打开；" +
-                $"最后观察场景：{latestScene}。",
+                $"最后一次是否确认任务面板：" +
+                $"{latestIsMissionPanel}。",
                 latestScreenshotPath);
         }
     }
